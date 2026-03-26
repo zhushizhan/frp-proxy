@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -59,10 +60,16 @@ var rootCmd = &cobra.Command{
 			return nil
 		}
 
+		resolvedCfgFile, err := resolveOptionalServerConfigPath(cfgFile)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		cfgFile = resolvedCfgFile
+
 		var (
 			svrCfg         *v1.ServerConfig
 			isLegacyFormat bool
-			err            error
 		)
 		if cfgFile != "" {
 			svrCfg, isLegacyFormat, err = config.LoadServerConfig(cfgFile, strictConfigMode)
@@ -106,6 +113,68 @@ func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func resolveOptionalServerConfigPath(explicitPath string) (string, error) {
+	if strings.TrimSpace(explicitPath) != "" {
+		return explicitPath, nil
+	}
+
+	for _, candidate := range defaultServerConfigCandidates() {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+	return "", nil
+}
+
+func resolveRequiredServerConfigPath(explicitPath string) (string, error) {
+	if strings.TrimSpace(explicitPath) != "" {
+		return explicitPath, nil
+	}
+
+	candidates := defaultServerConfigCandidates()
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("frps: no config file found, tried: %s", strings.Join(candidates, ", "))
+}
+
+func defaultServerConfigCandidates() []string {
+	names := []string{
+		"frps.toml",
+		"frps.yaml",
+		"frps.yml",
+		"frps.json",
+		"frps.ini",
+	}
+
+	paths := make([]string, 0, len(names)*2)
+	seen := map[string]struct{}{}
+	addDir := func(dir string) {
+		if strings.TrimSpace(dir) == "" {
+			return
+		}
+		for _, name := range names {
+			path := filepath.Join(dir, name)
+			if _, ok := seen[path]; ok {
+				continue
+			}
+			seen[path] = struct{}{}
+			paths = append(paths, path)
+		}
+	}
+
+	if exePath, err := os.Executable(); err == nil {
+		addDir(filepath.Dir(exePath))
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		addDir(cwd)
+	}
+	return paths
 }
 
 func runServer(cfg *v1.ServerConfig) (err error) {

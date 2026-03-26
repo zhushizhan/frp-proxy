@@ -33,12 +33,13 @@ var verifyCmd = &cobra.Command{
 	Use:   "verify",
 	Short: "Verify that the configures is valid",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if cfgFile == "" {
-			fmt.Println("frpc: the configuration file is not specified")
+		configPath, err := resolveClientConfigPath(cfgFile)
+		if err != nil {
+			fmt.Println(err)
 			return nil
 		}
 
-		cliCfg, proxyCfgs, visitorCfgs, _, err := config.LoadClientConfig(cfgFile, strictConfigMode)
+		cliCfg, proxyCfgs, visitorCfgs, _, err := config.LoadClientConfig(configPath, strictConfigMode)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -53,7 +54,7 @@ var verifyCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		fmt.Printf("frpc: the configuration file %s syntax is ok\n", cfgFile)
+		fmt.Printf("frpc: the configuration file %s syntax is ok\n", configPath)
 		return nil
 	},
 }

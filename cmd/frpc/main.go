@@ -15,6 +15,8 @@
 package main
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/fatedier/frp/cmd/frpc/sub"
 	"github.com/fatedier/frp/pkg/util/system"
 	_ "github.com/fatedier/frp/web/frpc"
@@ -22,5 +24,6 @@ import (
 
 func main() {
 	system.EnableCompatibilityMode()
+	cobra.MousetrapHelpText = ""
 	sub.Execute()
 }

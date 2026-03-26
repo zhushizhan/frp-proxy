@@ -54,7 +54,13 @@ func NewAdminCommand(name, short string, handler func(*v1.ClientCommonConfig) er
 		Use:   name,
 		Short: short,
 		Run: func(cmd *cobra.Command, args []string) {
-			cfg, _, _, _, err := config.LoadClientConfig(cfgFile, strictConfigMode)
+			configPath, err := resolveClientConfigPath(cfgFile)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+
+			cfg, _, _, _, err := config.LoadClientConfig(configPath, strictConfigMode)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

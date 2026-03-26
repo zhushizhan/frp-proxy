@@ -48,7 +48,7 @@ var (
 )
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "./frpc.ini", "config file of frpc")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file of frpc")
 	rootCmd.PersistentFlags().StringVarP(&cfgDir, "config_dir", "", "", "config directory, run one frpc service for each file in config directory")
 	rootCmd.PersistentFlags().BoolVarP(&showVersion, "version", "v", false, "version of frpc")
 	rootCmd.PersistentFlags().BoolVarP(&strictConfigMode, "strict_config", "", true, "strict config parsing mode, unknown fields will cause an errors")
@@ -75,8 +75,14 @@ var rootCmd = &cobra.Command{
 			return nil
 		}
 
+		configPath, err := resolveClientConfigPath(cfgFile)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
 		// Do not show command usage here.
-		err := runClient(cfgFile, unsafeFeatures)
+		err = runClient(configPath, unsafeFeatures)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -111,6 +117,55 @@ func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func resolveClientConfigPath(explicitPath string) (string, error) {
+	if strings.TrimSpace(explicitPath) != "" {
+		return explicitPath, nil
+	}
+
+	candidates := defaultClientConfigCandidates()
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("frpc: no config file found, tried: %s", strings.Join(candidates, ", "))
+}
+
+func defaultClientConfigCandidates() []string {
+	names := []string{
+		"frpc.toml",
+		"frpc.yaml",
+		"frpc.yml",
+		"frpc.json",
+		"frpc.ini",
+	}
+
+	paths := make([]string, 0, len(names)*2)
+	seen := map[string]struct{}{}
+	addDir := func(dir string) {
+		if strings.TrimSpace(dir) == "" {
+			return
+		}
+		for _, name := range names {
+			path := filepath.Join(dir, name)
+			if _, ok := seen[path]; ok {
+				continue
+			}
+			seen[path] = struct{}{}
+			paths = append(paths, path)
+		}
+	}
+
+	if exePath, err := os.Executable(); err == nil {
+		addDir(filepath.Dir(exePath))
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		addDir(cwd)
+	}
+	return paths
 }
 
 func handleTermSignal(svr *client.Service) {

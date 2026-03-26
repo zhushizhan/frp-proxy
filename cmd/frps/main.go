@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	_ "github.com/fatedier/frp/pkg/metrics"
 	"github.com/fatedier/frp/pkg/util/system"
 	_ "github.com/fatedier/frp/web/frps"
@@ -26,6 +28,7 @@ import (
 
 func main() {
 	system.EnableCompatibilityMode()
+	cobra.MousetrapHelpText = ""
 	if delay := os.Getenv("FRP_STARTUP_DELAY_MS"); delay != "" {
 		if ms, err := strconv.Atoi(delay); err == nil && ms > 0 {
 			time.Sleep(time.Duration(ms) * time.Millisecond)
