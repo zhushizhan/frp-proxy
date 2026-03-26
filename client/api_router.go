@@ -66,7 +66,7 @@ func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) 
 		registerWebUIRoutes(subRouter, webuiFS)
 	}
 	subRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/static/", http.StatusMovedPermanently)
+		http.Redirect(w, r, "/webui/", http.StatusMovedPermanently)
 	})
 }
 
