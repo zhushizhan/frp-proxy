@@ -38,21 +38,29 @@ type Controller struct {
 	serverCfg      *v1.ServerConfig
 	clientRegistry *registry.ClientRegistry
 	pxyManager     ProxyManager
+	getConfigMgr   func() ConfigManager
 }
 
 type ProxyManager interface {
 	GetByName(name string) (proxy.Proxy, bool)
 }
 
+type ConfigManager interface {
+	GetSettings() (model.ServerSettings, error)
+	UpdateSettings(model.ServerSettings) error
+}
+
 func NewController(
 	serverCfg *v1.ServerConfig,
 	clientRegistry *registry.ClientRegistry,
 	pxyManager ProxyManager,
+	getConfigMgr func() ConfigManager,
 ) *Controller {
 	return &Controller{
 		serverCfg:      serverCfg,
 		clientRegistry: clientRegistry,
 		pxyManager:     pxyManager,
+		getConfigMgr:   getConfigMgr,
 	}
 }
 
@@ -82,6 +90,39 @@ func (c *Controller) APIServerInfo(ctx *httppkg.Context) (any, error) {
 	}
 
 	return svrResp, nil
+}
+
+// /api/settings
+func (c *Controller) APISettings(ctx *httppkg.Context) (any, error) {
+	configManager := c.currentConfigManager()
+	if configManager == nil {
+		return nil, fmt.Errorf("server config manager unavailable")
+	}
+	return configManager.GetSettings()
+}
+
+// PUT /api/settings
+func (c *Controller) UpdateSettings(ctx *httppkg.Context) (any, error) {
+	configManager := c.currentConfigManager()
+	if configManager == nil {
+		return nil, fmt.Errorf("server config manager unavailable")
+	}
+
+	var payload model.ServerSettings
+	if err := ctx.BindJSON(&payload); err != nil {
+		return nil, httppkg.NewError(http.StatusBadRequest, err.Error())
+	}
+	if err := configManager.UpdateSettings(payload); err != nil {
+		return nil, httppkg.NewError(http.StatusBadRequest, err.Error())
+	}
+	return httppkg.GeneralResponse{Code: 200, Msg: "saved and restarting"}, nil
+}
+
+func (c *Controller) currentConfigManager() ConfigManager {
+	if c.getConfigMgr == nil {
+		return nil
+	}
+	return c.getConfigMgr()
 }
 
 // /api/clients

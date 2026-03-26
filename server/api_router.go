@@ -15,13 +15,18 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	httppkg "github.com/fatedier/frp/pkg/util/http"
 	netpkg "github.com/fatedier/frp/pkg/util/net"
 	adminapi "github.com/fatedier/frp/server/http"
+	adminapi_model "github.com/fatedier/frp/server/http/model"
+	webuifrps "github.com/fatedier/frp/webui/frps"
 )
 
 func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) {
@@ -36,10 +41,53 @@ func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) 
 		subRouter.Handle("/metrics", promhttp.Handler())
 	}
 
-	apiController := adminapi.NewController(svr.cfg, svr.clientRegistry, svr.pxyManager)
+	apiController := adminapi.NewController(svr.cfg, svr.clientRegistry, svr.pxyManager, func() adminapi.ConfigManager {
+		return svr.configManager
+	})
 
 	// apis
 	subRouter.HandleFunc("/api/serverinfo", httppkg.MakeHTTPHandlerFunc(apiController.APIServerInfo)).Methods("GET")
+	subRouter.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
+		if svr.configManager == nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(httppkg.GeneralResponse{Code: 500, Msg: "server config manager unavailable"})
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			settings, err := svr.configManager.GetSettings()
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(httppkg.GeneralResponse{Code: 400, Msg: err.Error()})
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(settings)
+		case http.MethodPut:
+			var payload adminapi_model.ServerSettings
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(httppkg.GeneralResponse{Code: 400, Msg: err.Error()})
+				return
+			}
+			if err := svr.configManager.UpdateSettings(payload); err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(httppkg.GeneralResponse{Code: 400, Msg: err.Error()})
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(httppkg.GeneralResponse{Code: 200, Msg: "saved and restarting"})
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	}).Methods("GET", "PUT")
 	subRouter.HandleFunc("/api/proxy/{type}", httppkg.MakeHTTPHandlerFunc(apiController.APIProxyByType)).Methods("GET")
 	subRouter.HandleFunc("/api/proxy/{type}/{name}", httppkg.MakeHTTPHandlerFunc(apiController.APIProxyByTypeAndName)).Methods("GET")
 	subRouter.HandleFunc("/api/proxies/{name}", httppkg.MakeHTTPHandlerFunc(apiController.APIProxyByName)).Methods("GET")
@@ -53,6 +101,9 @@ func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) 
 	subRouter.PathPrefix("/static/").Handler(
 		netpkg.MakeHTTPGzipHandler(http.StripPrefix("/static/", http.FileServer(helper.AssetsFS))),
 	).Methods("GET")
+	if webuiFS, ok := webuifrps.HTTPFileSystem(); ok {
+		registerWebUIRoutes(subRouter, webuiFS)
+	}
 
 	subRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/static/", http.StatusMovedPermanently)
@@ -61,4 +112,45 @@ func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) 
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(200)
+}
+
+func registerWebUIRoutes(router *mux.Router, webuiFS http.FileSystem) {
+	fileServer := http.FileServer(webuiFS)
+	servePath := func(w http.ResponseWriter, r *http.Request, path string) {
+		req := r.Clone(r.Context())
+		req.URL.Path = path
+		fileServer.ServeHTTP(w, req)
+	}
+	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		relPath := strings.TrimPrefix(r.URL.Path, "/webui/")
+		if hasWebUIAsset(webuiFS, relPath) {
+			servePath(w, r, "/"+relPath)
+			return
+		}
+		servePath(w, r, "/")
+	})
+
+	router.HandleFunc("/webui", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/webui/", http.StatusMovedPermanently)
+	}).Methods(http.MethodGet)
+	router.PathPrefix("/webui/").Handler(netpkg.MakeHTTPGzipHandler(spaHandler)).Methods(http.MethodGet)
+}
+
+func hasWebUIAsset(webuiFS http.FileSystem, relPath string) bool {
+	relPath = strings.TrimPrefix(relPath, "/")
+	if relPath == "" {
+		return false
+	}
+
+	file, err := webuiFS.Open(relPath)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
 }

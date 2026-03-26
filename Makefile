@@ -2,8 +2,9 @@ export PATH := $(PATH):`go env GOPATH`/bin
 export GO111MODULE=on
 LDFLAGS := -s -w
 NOWEB_TAG = $(shell [ ! -d web/frps/dist ] || [ ! -d web/frpc/dist ] && echo ',noweb')
+NOWEBUI_TAG = $(shell [ ! -d webui/frpc/dist ] || [ ! -d webui/frps/dist ] && echo ',nowebui')
 
-.PHONY: web frps-web frpc-web frps frpc
+.PHONY: web webui frps-web frpc-web frps-webui frpc-webui frps frpc
 
 all: env fmt web build
 
@@ -12,13 +13,21 @@ build: frps frpc
 env:
 	@go version
 
-web: frps-web frpc-web
+web: frps-web frpc-web frps-webui frpc-webui
+
+webui: frps-webui frpc-webui
 
 frps-web:
 	$(MAKE) -C web/frps build
 
 frpc-web:
 	$(MAKE) -C web/frpc build
+
+frpc-webui:
+	$(MAKE) -C webui/frpc build
+
+frps-webui:
+	$(MAKE) -C webui/frps build
 
 fmt:
 	go fmt ./...
@@ -30,22 +39,22 @@ gci:
 	gci write -s standard -s default -s "prefix(github.com/fatedier/frp/)" ./
 
 vet:
-	go vet -tags "$(NOWEB_TAG)" ./...
+	go vet -tags "$(NOWEB_TAG)$(NOWEBUI_TAG)" ./...
 
 frps:
-	env CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -tags "frps$(NOWEB_TAG)" -o bin/frps ./cmd/frps
+	env CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -tags "frps$(NOWEB_TAG)$(NOWEBUI_TAG)" -o bin/frps ./cmd/frps
 
 frpc:
-	env CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -tags "frpc$(NOWEB_TAG)" -o bin/frpc ./cmd/frpc
+	env CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -tags "frpc$(NOWEB_TAG)$(NOWEBUI_TAG)" -o bin/frpc ./cmd/frpc
 
 test: gotest
 
 gotest:
-	go test -tags "$(NOWEB_TAG)" -v --cover ./assets/...
-	go test -tags "$(NOWEB_TAG)" -v --cover ./cmd/...
-	go test -tags "$(NOWEB_TAG)" -v --cover ./client/...
-	go test -tags "$(NOWEB_TAG)" -v --cover ./server/...
-	go test -tags "$(NOWEB_TAG)" -v --cover ./pkg/...
+	go test -tags "$(NOWEB_TAG)$(NOWEBUI_TAG)" -v --cover ./assets/...
+	go test -tags "$(NOWEB_TAG)$(NOWEBUI_TAG)" -v --cover ./cmd/...
+	go test -tags "$(NOWEB_TAG)$(NOWEBUI_TAG)" -v --cover ./client/...
+	go test -tags "$(NOWEB_TAG)$(NOWEBUI_TAG)" -v --cover ./server/...
+	go test -tags "$(NOWEB_TAG)$(NOWEBUI_TAG)" -v --cover ./pkg/...
 
 e2e:
 	./hack/run-e2e.sh

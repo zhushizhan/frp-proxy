@@ -16,11 +16,15 @@ package client
 
 import (
 	"net/http"
+	"strings"
+
+	"github.com/gorilla/mux"
 
 	adminapi "github.com/fatedier/frp/client/http"
 	"github.com/fatedier/frp/client/proxy"
 	httppkg "github.com/fatedier/frp/pkg/util/http"
 	netpkg "github.com/fatedier/frp/pkg/util/net"
+	webuifrpc "github.com/fatedier/frp/webui/frpc"
 )
 
 func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) {
@@ -58,6 +62,9 @@ func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) 
 	subRouter.PathPrefix("/static/").Handler(
 		netpkg.MakeHTTPGzipHandler(http.StripPrefix("/static/", http.FileServer(helper.AssetsFS))),
 	).Methods("GET")
+	if webuiFS, ok := webuifrpc.HTTPFileSystem(); ok {
+		registerWebUIRoutes(subRouter, webuiFS)
+	}
 	subRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/static/", http.StatusMovedPermanently)
 	})
@@ -73,6 +80,47 @@ func newAPIController(svr *Service) *adminapi.Controller {
 		ServerAddr: svr.common.ServerAddr,
 		Manager:    manager,
 	})
+}
+
+func registerWebUIRoutes(router *mux.Router, webuiFS http.FileSystem) {
+	fileServer := http.FileServer(webuiFS)
+	servePath := func(w http.ResponseWriter, r *http.Request, path string) {
+		req := r.Clone(r.Context())
+		req.URL.Path = path
+		fileServer.ServeHTTP(w, req)
+	}
+	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		relPath := strings.TrimPrefix(r.URL.Path, "/webui/")
+		if hasWebUIAsset(webuiFS, relPath) {
+			servePath(w, r, "/"+relPath)
+			return
+		}
+		servePath(w, r, "/")
+	})
+
+	router.HandleFunc("/webui", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/webui/", http.StatusMovedPermanently)
+	}).Methods(http.MethodGet)
+	router.PathPrefix("/webui/").Handler(netpkg.MakeHTTPGzipHandler(spaHandler)).Methods(http.MethodGet)
+}
+
+func hasWebUIAsset(webuiFS http.FileSystem, relPath string) bool {
+	relPath = strings.TrimPrefix(relPath, "/")
+	if relPath == "" {
+		return false
+	}
+
+	file, err := webuiFS.Open(relPath)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
 }
 
 // getAllProxyStatus returns all proxy statuses.

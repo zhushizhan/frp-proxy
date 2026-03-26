@@ -121,6 +121,16 @@ func runServer(cfg *v1.ServerConfig) (err error) {
 	if err != nil {
 		return err
 	}
+	exePath, _ := os.Executable()
+	workDir, _ := os.Getwd()
+	svr.SetConfigManager(server.NewFileConfigManager(server.FileConfigManagerOptions{
+		Service:        svr,
+		ConfigFilePath: cfgFile,
+		ExecutablePath: exePath,
+		Args:           os.Args[1:],
+		WorkDir:        workDir,
+		UnsafeFeatures: security.NewUnsafeFeatures(allowUnsafe),
+	}))
 	log.Infof("frps started successfully")
 	svr.Run(context.Background())
 	return

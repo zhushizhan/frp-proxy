@@ -124,10 +124,16 @@ type Service struct {
 
 	cfg *v1.ServerConfig
 
+	configManager *FileConfigManager
+
 	// service context
 	ctx context.Context
 	// call cancel to stop service
 	cancel context.CancelFunc
+}
+
+func (svr *Service) SetConfigManager(manager *FileConfigManager) {
+	svr.configManager = manager
 }
 
 func NewService(cfg *v1.ServerConfig) (*Service, error) {
