@@ -7,6 +7,23 @@
 
 [README](README.md) | [中文文档](README_zh.md)
 
+## frp-proxy Workflow
+
+This repository is the customized `frp-proxy` edition built on top of upstream `frp`.
+
+- sibling local repository `frp`: clean upstream reference
+- current repository `frp-proxy`: customized edition with UI / i18n / guided configuration changes
+
+Recommended upstream sync guide:
+
+- [doc/agents/upstream_sync.md](doc/agents/upstream_sync.md)
+
+Quick command:
+
+```powershell
+.\hack\sync-upstream.ps1
+```
+
 ## Sponsors
 
 frp is an open source project with its ongoing development made possible entirely by the support of our awesome sponsors. If you'd like to join them, please consider [sponsoring frp's development](https://github.com/sponsors/fatedier).
