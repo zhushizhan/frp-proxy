@@ -119,6 +119,41 @@ func (c *Controller) GetConfig(ctx *httppkg.Context) (any, error) {
 	return content, nil
 }
 
+// GetSettings handles GET /api/settings
+func (c *Controller) GetSettings(ctx *httppkg.Context) (any, error) {
+	settings, err := c.manager.GetSettings()
+	if err != nil {
+		return nil, c.toHTTPError(err)
+	}
+	return settings, nil
+}
+
+// UpdateSettings handles PUT /api/settings
+func (c *Controller) UpdateSettings(ctx *httppkg.Context) (any, error) {
+	var payload model.ClientSettings
+	if err := ctx.BindJSON(&payload); err != nil {
+		return nil, httppkg.NewError(http.StatusBadRequest, err.Error())
+	}
+
+	if err := c.manager.UpdateSettings(payload); err != nil {
+		return nil, c.toHTTPError(err)
+	}
+	return httppkg.GeneralResponse{Code: 200, Msg: "saved and reloaded"}, nil
+}
+
+// UploadFile handles POST /api/files/upload
+func (c *Controller) UploadFile(ctx *httppkg.Context) (any, error) {
+	upload, err := httppkg.ParseUploadedFileRequest(ctx.Req)
+	if err != nil {
+		return nil, httppkg.NewError(http.StatusBadRequest, err.Error())
+	}
+	savedPath, err := c.manager.UploadFile(upload.TargetPath, upload.Filename, upload.Content)
+	if err != nil {
+		return nil, c.toHTTPError(err)
+	}
+	return model.FileUploadResp{SavedPath: savedPath}, nil
+}
+
 // PutConfig handles PUT /api/config
 func (c *Controller) PutConfig(ctx *httppkg.Context) (any, error) {
 	body, err := ctx.Body()
@@ -198,6 +233,46 @@ func (c *Controller) GetVisitorConfig(ctx *httppkg.Context) (any, error) {
 		return nil, httppkg.NewError(http.StatusInternalServerError, err.Error())
 	}
 	return payload, nil
+}
+
+func (c *Controller) ListConfigProxies(ctx *httppkg.Context) (any, error) {
+	proxies, err := c.manager.ListConfigProxies()
+	if err != nil {
+		return nil, c.toHTTPError(err)
+	}
+
+	resp := model.ProxyListResp{Proxies: make([]model.ProxyDefinition, 0, len(proxies))}
+	for _, p := range proxies {
+		payload, err := model.ProxyDefinitionFromConfigurer(p)
+		if err != nil {
+			return nil, httppkg.NewError(http.StatusInternalServerError, err.Error())
+		}
+		resp.Proxies = append(resp.Proxies, payload)
+	}
+	slices.SortFunc(resp.Proxies, func(a, b model.ProxyDefinition) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	return resp, nil
+}
+
+func (c *Controller) ListConfigVisitors(ctx *httppkg.Context) (any, error) {
+	visitors, err := c.manager.ListConfigVisitors()
+	if err != nil {
+		return nil, c.toHTTPError(err)
+	}
+
+	resp := model.VisitorListResp{Visitors: make([]model.VisitorDefinition, 0, len(visitors))}
+	for _, v := range visitors {
+		payload, err := model.VisitorDefinitionFromConfigurer(v)
+		if err != nil {
+			return nil, httppkg.NewError(http.StatusInternalServerError, err.Error())
+		}
+		resp.Visitors = append(resp.Visitors, payload)
+	}
+	slices.SortFunc(resp.Visitors, func(a, b model.VisitorDefinition) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	return resp, nil
 }
 
 func (c *Controller) ListStoreProxies(ctx *httppkg.Context) (any, error) {

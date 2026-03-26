@@ -9,9 +9,11 @@
         </p>
       </div>
       <div class="actions">
-        <el-button @click="fetchData">{{ t('common.refresh') }}</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">
-          {{ t('common.saveAndRestart') }}
+        <el-button :disabled="saving || restarting" @click="fetchData">
+          {{ t('common.refresh') }}
+        </el-button>
+        <el-button type="primary" :loading="saving || restarting" :disabled="restarting" @click="handleSave">
+          {{ restarting ? t('serverSettings.actions.waitingForRestart') : t('common.saveAndRestart') }}
         </el-button>
       </div>
     </div>
@@ -23,6 +25,25 @@
       show-icon
       class="restart-alert"
     />
+
+    <el-alert
+      v-if="restartState.active"
+      :title="restartAlertTitle"
+      :description="restartAlertDescription"
+      :type="restartState.polling ? 'info' : 'success'"
+      :closable="false"
+      show-icon
+      class="restart-alert"
+    />
+
+    <div v-if="restartState.targetUrl" class="restart-link-row">
+      <a :href="restartState.targetUrl" class="restart-link">
+        {{ restartState.targetUrl }}
+      </a>
+      <el-button text @click="openRestartTarget">
+        {{ t('serverSettings.actions.openNewAddress') }}
+      </el-button>
+    </div>
 
     <el-form
       ref="formRef"
@@ -202,7 +223,15 @@
               :label="fieldLabel('tokenSourceFile')"
               prop="authTokenSourceFile"
             >
-              <el-input v-model="form.authTokenSourceFile" placeholder="/etc/frp/token" />
+              <div class="path-upload-row">
+                <el-input v-model="form.authTokenSourceFile" placeholder="/etc/frp/token" />
+                <el-button
+                  :loading="uploadLoading.authTokenSourceFile"
+                  @click="pickAndUploadFile('authTokenSourceFile')"
+                >
+                  {{ t('common.upload') }}
+                </el-button>
+              </div>
             </el-form-item>
             <el-form-item v-else :label="fieldLabel('tokenSource')">
               <el-input :model-value="t('serverSettings.alerts.execPreserved')" disabled />
@@ -273,17 +302,41 @@
             <el-input-number v-model="form.quicMaxIncomingStreams" :min="0" controls-position="right" />
           </el-form-item>
         </div>
-        <div class="grid three">
-          <el-form-item :label="fieldLabel('transportTLSCertFile')">
-            <el-input v-model="form.transportTLSCertFile" placeholder="./server.crt" />
-          </el-form-item>
-          <el-form-item :label="fieldLabel('transportTLSKeyFile')">
-            <el-input v-model="form.transportTLSKeyFile" placeholder="./server.key" />
-          </el-form-item>
-          <el-form-item :label="fieldLabel('transportTLSTrustedCaFile')">
-            <el-input v-model="form.transportTLSTrustedCaFile" placeholder="./ca.crt" />
-          </el-form-item>
-        </div>
+                <div class="grid three">
+                  <el-form-item :label="fieldLabel('transportTLSCertFile')">
+                    <div class="path-upload-row">
+                      <el-input v-model="form.transportTLSCertFile" placeholder="./server.crt" />
+                      <el-button
+                        :loading="uploadLoading.transportTLSCertFile"
+                        @click="pickAndUploadFile('transportTLSCertFile')"
+                      >
+                        {{ t('common.upload') }}
+                      </el-button>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="fieldLabel('transportTLSKeyFile')">
+                    <div class="path-upload-row">
+                      <el-input v-model="form.transportTLSKeyFile" placeholder="./server.key" />
+                      <el-button
+                        :loading="uploadLoading.transportTLSKeyFile"
+                        @click="pickAndUploadFile('transportTLSKeyFile')"
+                      >
+                        {{ t('common.upload') }}
+                      </el-button>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="fieldLabel('transportTLSTrustedCaFile')">
+                    <div class="path-upload-row">
+                      <el-input v-model="form.transportTLSTrustedCaFile" placeholder="./ca.crt" />
+                      <el-button
+                        :loading="uploadLoading.transportTLSTrustedCaFile"
+                        @click="pickAndUploadFile('transportTLSTrustedCaFile')"
+                      >
+                        {{ t('common.upload') }}
+                      </el-button>
+                    </div>
+                  </el-form-item>
+                </div>
         <div class="field-help">{{ t('serverSettings.helpers.transportTLS') }}</div>
       </el-card>
 
@@ -360,17 +413,41 @@
             <el-switch v-model="form.dashboardPprofEnable" />
           </el-form-item>
         </div>
-        <div class="grid three">
-          <el-form-item :label="fieldLabel('dashboardTLSCertFile')">
-            <el-input v-model="form.dashboardTLSCertFile" placeholder="./server.crt" />
-          </el-form-item>
-          <el-form-item :label="fieldLabel('dashboardTLSKeyFile')">
-            <el-input v-model="form.dashboardTLSKeyFile" placeholder="./server.key" />
-          </el-form-item>
-          <el-form-item :label="fieldLabel('dashboardTLSTrustedCaFile')">
-            <el-input v-model="form.dashboardTLSTrustedCaFile" placeholder="./ca.crt" />
-          </el-form-item>
-        </div>
+                <div class="grid three">
+                  <el-form-item :label="fieldLabel('dashboardTLSCertFile')">
+                    <div class="path-upload-row">
+                      <el-input v-model="form.dashboardTLSCertFile" placeholder="./server.crt" />
+                      <el-button
+                        :loading="uploadLoading.dashboardTLSCertFile"
+                        @click="pickAndUploadFile('dashboardTLSCertFile')"
+                      >
+                        {{ t('common.upload') }}
+                      </el-button>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="fieldLabel('dashboardTLSKeyFile')">
+                    <div class="path-upload-row">
+                      <el-input v-model="form.dashboardTLSKeyFile" placeholder="./server.key" />
+                      <el-button
+                        :loading="uploadLoading.dashboardTLSKeyFile"
+                        @click="pickAndUploadFile('dashboardTLSKeyFile')"
+                      >
+                        {{ t('common.upload') }}
+                      </el-button>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="fieldLabel('dashboardTLSTrustedCaFile')">
+                    <div class="path-upload-row">
+                      <el-input v-model="form.dashboardTLSTrustedCaFile" placeholder="./ca.crt" />
+                      <el-button
+                        :loading="uploadLoading.dashboardTLSTrustedCaFile"
+                        @click="pickAndUploadFile('dashboardTLSTrustedCaFile')"
+                      >
+                        {{ t('common.upload') }}
+                      </el-button>
+                    </div>
+                  </el-form-item>
+                </div>
         <div class="field-help">{{ t('serverSettings.helpers.dashboardTLS') }}</div>
       </el-card>
 
@@ -496,14 +573,30 @@
             <el-input v-model="form.sshAutoGenKeyPath" placeholder="./.autogen_ssh_key" />
           </el-form-item>
         </div>
-        <div class="grid two">
-          <el-form-item :label="fieldLabel('sshPrivateKeyFile')">
-            <el-input v-model="form.sshPrivateKeyFile" placeholder="/path/to/id_rsa" />
-          </el-form-item>
-          <el-form-item :label="fieldLabel('sshAuthorizedKeysFile')">
-            <el-input v-model="form.sshAuthorizedKeysFile" placeholder="/path/to/authorized_keys" />
-          </el-form-item>
-        </div>
+                <div class="grid two">
+                  <el-form-item :label="fieldLabel('sshPrivateKeyFile')">
+                    <div class="path-upload-row">
+                      <el-input v-model="form.sshPrivateKeyFile" placeholder="/path/to/id_rsa" />
+                      <el-button
+                        :loading="uploadLoading.sshPrivateKeyFile"
+                        @click="pickAndUploadFile('sshPrivateKeyFile')"
+                      >
+                        {{ t('common.upload') }}
+                      </el-button>
+                    </div>
+                  </el-form-item>
+                  <el-form-item :label="fieldLabel('sshAuthorizedKeysFile')">
+                    <div class="path-upload-row">
+                      <el-input v-model="form.sshAuthorizedKeysFile" placeholder="/path/to/authorized_keys" />
+                      <el-button
+                        :loading="uploadLoading.sshAuthorizedKeysFile"
+                        @click="pickAndUploadFile('sshAuthorizedKeysFile')"
+                      >
+                        {{ t('common.upload') }}
+                      </el-button>
+                    </div>
+                  </el-form-item>
+                </div>
         <div class="field-help">{{ t('serverSettings.helpers.ssh') }}</div>
       </el-card>
 
@@ -525,7 +618,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance, FormItemRule, FormRules } from 'element-plus'
-import { getServerSettings, updateServerSettings } from '../api/server'
+import { getServerSettings, updateServerSettings, uploadFile as uploadServerFile } from '../api/server'
 import { useI18n } from '../i18n'
 import type { HTTPPluginSettings, ServerSettings } from '../types/server'
 
@@ -539,8 +632,10 @@ type PluginPresetKey =
 
 const formRef = ref<FormInstance>()
 const saving = ref(false)
+const restarting = ref(false)
 const supportsExecTokenSource = ref(false)
 const advancedOpen = ref(false)
+const uploadLoading = reactive<Record<string, boolean>>({})
 const logLevelOptions = ['trace', 'debug', 'info', 'warn', 'error']
 const pluginOpOptions = [
   'Login',
@@ -550,6 +645,12 @@ const pluginOpOptions = [
   'NewWorkConn',
   'NewUserConn',
 ]
+const restartState = reactive({
+  active: false,
+  polling: false,
+  targetUrl: '',
+  changedOrigin: false,
+})
 
 const authMethodOptions = computed(() => [
   { label: t('serverSettings.options.token'), value: 'token' },
@@ -587,6 +688,19 @@ const pluginPresets = computed(() => [
 
 const sectionLabel = (key: string) => t(`serverSettings.sections.${key}`)
 const fieldLabel = (key: string) => t(`serverSettings.fields.${key}`)
+
+const restartAlertTitle = computed(() =>
+  restartState.changedOrigin
+    ? t('serverSettings.restartState.redirectTitle')
+    : t('serverSettings.restartState.pollingTitle'),
+)
+
+const restartAlertDescription = computed(() => {
+  if (restartState.changedOrigin) {
+    return t('serverSettings.restartState.redirectDescription')
+  }
+  return t('serverSettings.restartState.pollingDescription')
+})
 
 const form = reactive<ServerSettings>({
   configPath: '',
@@ -776,6 +890,10 @@ const fetchData = async () => {
   try {
     const payload = await getServerSettings()
     applySettings(payload)
+    if (restartState.active) {
+      ElMessage.success(t('serverSettings.restartState.recovered'))
+      resetRestartState()
+    }
   } catch (error: any) {
     ElMessage.error(t('serverSettings.loadFailed', { message: error.message }))
   }
@@ -788,9 +906,17 @@ const handleSave = async () => {
   }
   saving.value = true
   try {
+    const restartPlan = buildRestartPlan()
     await updateServerSettings({ ...form })
-    ElMessage.success(t('serverSettings.saveSuccess'))
+    beginRestartState(restartPlan)
+    ElMessage.success(
+      restartPlan.changedOrigin
+        ? t('serverSettings.restartState.redirectQueued')
+        : t('serverSettings.saveSuccess'),
+    )
+    void waitForServerRestart(restartPlan)
   } catch (error: any) {
+    resetRestartState()
     ElMessage.error(t('serverSettings.saveFailed', { message: error.message }))
   } finally {
     saving.value = false
@@ -798,6 +924,116 @@ const handleSave = async () => {
 }
 
 onMounted(fetchData)
+
+async function pickAndUploadFile(field: UploadableField) {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) {
+      return
+    }
+
+    uploadLoading[field] = true
+    try {
+      const targetPath = String(form[field] || '')
+      const resp = await uploadServerFile(targetPath, file)
+      form[field] = resp.savedPath as ServerSettings[UploadableField]
+      ElMessage.success(t('serverSettings.uploadSuccess', { path: resp.savedPath }))
+    } catch (error: any) {
+      ElMessage.error(t('serverSettings.uploadFailed', { message: error.message }))
+    } finally {
+      uploadLoading[field] = false
+    }
+  }
+  input.click()
+}
+
+function buildRestartPlan() {
+  const current = new URL(window.location.href)
+  const hostname = normalizeDashboardHost(form.dashboardAddr, current.hostname)
+  const protocol = inferDashboardProtocol()
+  const targetOrigin = `${protocol}//${hostname}:${form.dashboardPort}`
+  const currentOrigin = window.location.origin
+  return {
+    targetUrl: `${targetOrigin}/webui/#/settings`,
+    changedOrigin: targetOrigin !== currentOrigin,
+  }
+}
+
+function normalizeDashboardHost(addr: string, fallbackHost: string) {
+  const normalized = String(addr || '').trim()
+  if (!normalized || normalized === '0.0.0.0' || normalized === '::' || normalized === '[::]') {
+    return fallbackHost
+  }
+  return normalized
+}
+
+function inferDashboardProtocol() {
+  if (
+    String(form.dashboardTLSCertFile || '').trim() ||
+    String(form.dashboardTLSKeyFile || '').trim() ||
+    String(form.dashboardTLSTrustedCaFile || '').trim()
+  ) {
+    return 'https:'
+  }
+  return window.location.protocol
+}
+
+function beginRestartState(plan: { targetUrl: string; changedOrigin: boolean }) {
+  restartState.active = true
+  restartState.polling = true
+  restartState.targetUrl = plan.targetUrl
+  restartState.changedOrigin = plan.changedOrigin
+  restarting.value = true
+}
+
+function resetRestartState() {
+  restartState.active = false
+  restartState.polling = false
+  restartState.targetUrl = ''
+  restartState.changedOrigin = false
+  restarting.value = false
+}
+
+async function waitForServerRestart(plan: { targetUrl: string; changedOrigin: boolean }) {
+  if (plan.changedOrigin) {
+    restartState.polling = false
+    restarting.value = false
+    window.setTimeout(() => {
+      window.location.assign(plan.targetUrl)
+    }, 1500)
+    return
+  }
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await sleep(attempt < 3 ? 1000 : 1500)
+    try {
+      const payload = await getServerSettings()
+      applySettings(payload)
+      ElMessage.success(t('serverSettings.restartState.recovered'))
+      resetRestartState()
+      return
+    } catch {
+      // Keep polling while frps is restarting.
+    }
+  }
+
+  restartState.polling = false
+  restarting.value = false
+  ElMessage.warning(t('serverSettings.restartState.refreshManual'))
+}
+
+function openRestartTarget() {
+  if (!restartState.targetUrl) {
+    return
+  }
+  window.location.assign(restartState.targetUrl)
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
 
 function createEmptyHTTPPlugin(): HTTPPluginSettings {
   return {
@@ -958,6 +1194,17 @@ function validateOIDCIssuer(
   }
   callback()
 }
+
+type UploadableField =
+  | 'authTokenSourceFile'
+  | 'transportTLSCertFile'
+  | 'transportTLSKeyFile'
+  | 'transportTLSTrustedCaFile'
+  | 'dashboardTLSCertFile'
+  | 'dashboardTLSKeyFile'
+  | 'dashboardTLSTrustedCaFile'
+  | 'sshPrivateKeyFile'
+  | 'sshAuthorizedKeysFile'
 </script>
 
 <style scoped>
@@ -995,6 +1242,25 @@ function validateOIDCIssuer(
 
 .restart-alert {
   margin-bottom: 4px;
+}
+
+.restart-link-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: -4px;
+}
+
+.restart-link {
+  font-size: 13px;
+  color: var(--el-color-primary);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.restart-link:hover {
+  text-decoration: underline;
 }
 
 .settings-form {
@@ -1203,6 +1469,16 @@ function validateOIDCIssuer(
   font-size: 14px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.path-upload-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.path-upload-row .el-input {
+  flex: 1;
 }
 
 @media (max-width: 1200px) {

@@ -14,6 +14,7 @@ export const messagesZh = {
   },
   common: {
     refresh: '刷新',
+    upload: '上传',
     clear: '清空',
     loading: '加载中...',
     enabled: '已启用',
@@ -268,6 +269,8 @@ export const messagesZh = {
       addPlugin: '新增插件',
       removePlugin: '删除插件',
       addPreset: '使用预设',
+      openNewAddress: '打开新地址',
+      waitingForRestart: '等待重启完成',
     },
     emptyPlugins: '当前还没有配置 HTTP 插件。',
     presetTitle: '快捷预设',
@@ -315,5 +318,16 @@ export const messagesZh = {
     loadFailed: '加载服务端设置失败：{message}',
     saveSuccess: '设置已保存，frps 正在重启...',
     saveFailed: '保存服务端设置失败：{message}',
+    uploadSuccess: '文件已上传到 {path}',
+    uploadFailed: '上传文件失败：{message}',
+    restartState: {
+      pollingTitle: 'frps 正在重启',
+      pollingDescription: '当前页面正在等待 frps 在这个地址恢复。服务重启期间可以停留在这里等待。',
+      redirectTitle: 'frps 正在切换到新的地址',
+      redirectDescription: 'Dashboard 监听地址已经变更。请在 frps 重启完成后打开下面的新地址。',
+      redirectQueued: '设置已保存，稍后将跳转到新的 Dashboard 地址...',
+      recovered: 'frps 已恢复在线。',
+      refreshManual: 'frps 仍在重启。如果页面没有自动恢复，请手动打开上方显示的新地址。',
+    },
   },
 } as const

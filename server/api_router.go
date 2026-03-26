@@ -47,6 +47,7 @@ func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) 
 
 	// apis
 	subRouter.HandleFunc("/api/serverinfo", httppkg.MakeHTTPHandlerFunc(apiController.APIServerInfo)).Methods("GET")
+	subRouter.HandleFunc("/api/files/upload", httppkg.MakeHTTPHandlerFunc(apiController.UploadFile)).Methods("POST")
 	subRouter.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) {
 		if svr.configManager == nil {
 			w.Header().Set("Content-Type", "application/json")

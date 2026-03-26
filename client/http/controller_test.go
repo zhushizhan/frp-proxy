@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,11 +24,16 @@ type fakeConfigManager struct {
 	reloadFromFileFn      func(strict bool) error
 	readConfigFileFn      func() (string, error)
 	writeConfigFileFn     func(content []byte) error
+	getSettingsFn         func() (model.ClientSettings, error)
+	updateSettingsFn      func(model.ClientSettings) error
+	uploadFileFn          func(targetPath string, filename string, content []byte) (string, error)
 	getProxyStatusFn      func() []*proxy.WorkingStatus
 	isStoreProxyEnabledFn func(name string) bool
 	storeEnabledFn        func() bool
 	getProxyConfigFn      func(name string) (v1.ProxyConfigurer, bool)
 	getVisitorConfigFn    func(name string) (v1.VisitorConfigurer, bool)
+	listConfigProxiesFn   func() ([]v1.ProxyConfigurer, error)
+	listConfigVisitorsFn  func() ([]v1.VisitorConfigurer, error)
 
 	listStoreProxiesFn  func() ([]v1.ProxyConfigurer, error)
 	getStoreProxyFn     func(name string) (v1.ProxyConfigurer, error)
@@ -61,6 +67,27 @@ func (m *fakeConfigManager) WriteConfigFile(content []byte) error {
 		return m.writeConfigFileFn(content)
 	}
 	return nil
+}
+
+func (m *fakeConfigManager) GetSettings() (model.ClientSettings, error) {
+	if m.getSettingsFn != nil {
+		return m.getSettingsFn()
+	}
+	return model.ClientSettings{}, nil
+}
+
+func (m *fakeConfigManager) UpdateSettings(in model.ClientSettings) error {
+	if m.updateSettingsFn != nil {
+		return m.updateSettingsFn(in)
+	}
+	return nil
+}
+
+func (m *fakeConfigManager) UploadFile(targetPath string, filename string, content []byte) (string, error) {
+	if m.uploadFileFn != nil {
+		return m.uploadFileFn(targetPath, filename, content)
+	}
+	return targetPath, nil
 }
 
 func (m *fakeConfigManager) GetProxyStatus() []*proxy.WorkingStatus {
@@ -105,6 +132,13 @@ func (m *fakeConfigManager) ListStoreProxies() ([]v1.ProxyConfigurer, error) {
 	return nil, nil
 }
 
+func (m *fakeConfigManager) ListConfigProxies() ([]v1.ProxyConfigurer, error) {
+	if m.listConfigProxiesFn != nil {
+		return m.listConfigProxiesFn()
+	}
+	return nil, nil
+}
+
 func (m *fakeConfigManager) GetStoreProxy(name string) (v1.ProxyConfigurer, error) {
 	if m.getStoreProxyFn != nil {
 		return m.getStoreProxyFn(name)
@@ -136,6 +170,13 @@ func (m *fakeConfigManager) DeleteStoreProxy(name string) error {
 func (m *fakeConfigManager) ListStoreVisitors() ([]v1.VisitorConfigurer, error) {
 	if m.listStoreVisitorsFn != nil {
 		return m.listStoreVisitorsFn()
+	}
+	return nil, nil
+}
+
+func (m *fakeConfigManager) ListConfigVisitors() ([]v1.VisitorConfigurer, error) {
+	if m.listConfigVisitorsFn != nil {
+		return m.listConfigVisitorsFn()
 	}
 	return nil, nil
 }
@@ -492,6 +533,34 @@ func TestListStoreProxiesReturnsSortedPayload(t *testing.T) {
 	}
 }
 
+func TestListConfigProxiesReturnsSortedPayload(t *testing.T) {
+	controller := &Controller{
+		manager: &fakeConfigManager{
+			listConfigProxiesFn: func() ([]v1.ProxyConfigurer, error) {
+				b := newRawTCPProxyConfig("b")
+				a := newRawTCPProxyConfig("a")
+				return []v1.ProxyConfigurer{b, a}, nil
+			},
+		},
+	}
+	ctx := httppkg.NewContext(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/config/proxies", nil))
+
+	resp, err := controller.ListConfigProxies(ctx)
+	if err != nil {
+		t.Fatalf("list config proxies: %v", err)
+	}
+	out, ok := resp.(model.ProxyListResp)
+	if !ok {
+		t.Fatalf("unexpected response type: %T", resp)
+	}
+	if len(out.Proxies) != 2 {
+		t.Fatalf("unexpected proxy count: %d", len(out.Proxies))
+	}
+	if out.Proxies[0].Name != "a" || out.Proxies[1].Name != "b" {
+		t.Fatalf("proxies are not sorted by name: %#v", out.Proxies)
+	}
+}
+
 func fmtError(sentinel error, msg string) error {
 	return fmt.Errorf("%w: %s", sentinel, msg)
 }
@@ -584,6 +653,34 @@ func TestGetProxyConfigFromManager(t *testing.T) {
 	}
 }
 
+func TestListConfigVisitorsReturnsSortedPayload(t *testing.T) {
+	controller := &Controller{
+		manager: &fakeConfigManager{
+			listConfigVisitorsFn: func() ([]v1.VisitorConfigurer, error) {
+				b := &v1.STCPVisitorConfig{VisitorBaseConfig: v1.VisitorBaseConfig{Name: "b", Type: "stcp"}}
+				a := &v1.STCPVisitorConfig{VisitorBaseConfig: v1.VisitorBaseConfig{Name: "a", Type: "stcp"}}
+				return []v1.VisitorConfigurer{b, a}, nil
+			},
+		},
+	}
+	ctx := httppkg.NewContext(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/config/visitors", nil))
+
+	resp, err := controller.ListConfigVisitors(ctx)
+	if err != nil {
+		t.Fatalf("list config visitors: %v", err)
+	}
+	out, ok := resp.(model.VisitorListResp)
+	if !ok {
+		t.Fatalf("unexpected response type: %T", resp)
+	}
+	if len(out.Visitors) != 2 {
+		t.Fatalf("unexpected visitor count: %d", len(out.Visitors))
+	}
+	if out.Visitors[0].Name != "a" || out.Visitors[1].Name != "b" {
+		t.Fatalf("visitors are not sorted by name: %#v", out.Visitors)
+	}
+}
+
 func TestGetProxyConfigNotFound(t *testing.T) {
 	controller := &Controller{
 		manager: &fakeConfigManager{
@@ -659,4 +756,99 @@ func TestGetVisitorConfigNotFound(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	assertHTTPCode(t, err, http.StatusNotFound)
+}
+
+func TestGetSettings(t *testing.T) {
+	controller := &Controller{
+		manager: &fakeConfigManager{
+			getSettingsFn: func() (model.ClientSettings, error) {
+				return model.ClientSettings{
+					ServerAddr: "127.0.0.1",
+					ServerPort: 7000,
+					StorePath:  "./frpc_store.json",
+				}, nil
+			},
+		},
+	}
+
+	ctx := httppkg.NewContext(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/settings", nil))
+	resp, err := controller.GetSettings(ctx)
+	if err != nil {
+		t.Fatalf("get settings: %v", err)
+	}
+	payload, ok := resp.(model.ClientSettings)
+	if !ok {
+		t.Fatalf("unexpected response type: %T", resp)
+	}
+	if payload.StorePath != "./frpc_store.json" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
+func TestUpdateSettingsErrorMapping(t *testing.T) {
+	body := []byte(`{"serverAddr":"127.0.0.1","serverPort":7000}`)
+	req := httptest.NewRequest(http.MethodPut, "/api/settings", bytes.NewReader(body))
+	ctx := httppkg.NewContext(httptest.NewRecorder(), req)
+
+	controller := &Controller{
+		manager: &fakeConfigManager{
+			updateSettingsFn: func(model.ClientSettings) error {
+				return fmtError(configmgmt.ErrInvalidArgument, "bad settings")
+			},
+		},
+	}
+
+	_, err := controller.UpdateSettings(ctx)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	assertHTTPCode(t, err, http.StatusBadRequest)
+}
+
+func TestUploadFile(t *testing.T) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	if err := writer.WriteField("targetPath", "./certs/client.crt"); err != nil {
+		t.Fatalf("write field: %v", err)
+	}
+	part, err := writer.CreateFormFile("file", "client.crt")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := part.Write([]byte("cert-data")); err != nil {
+		t.Fatalf("write form file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	var gotPath, gotName string
+	var gotContent []byte
+	controller := &Controller{
+		manager: &fakeConfigManager{
+			uploadFileFn: func(targetPath string, filename string, content []byte) (string, error) {
+				gotPath, gotName, gotContent = targetPath, filename, content
+				return "./certs/client.crt", nil
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/files/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	ctx := httppkg.NewContext(httptest.NewRecorder(), req)
+
+	resp, err := controller.UploadFile(ctx)
+	if err != nil {
+		t.Fatalf("upload file: %v", err)
+	}
+	payload, ok := resp.(model.FileUploadResp)
+	if !ok {
+		t.Fatalf("unexpected response type: %T", resp)
+	}
+	if payload.SavedPath != "./certs/client.crt" {
+		t.Fatalf("unexpected saved path: %s", payload.SavedPath)
+	}
+	if gotPath != "./certs/client.crt" || gotName != "client.crt" || string(gotContent) != "cert-data" {
+		t.Fatalf("unexpected upload args: path=%s name=%s content=%s", gotPath, gotName, string(gotContent))
+	}
 }

@@ -1,5 +1,6 @@
 import { http } from './http'
 import type {
+  ClientSettings,
   StatusResponse,
   ProxyListResp,
   ProxyDefinition,
@@ -15,8 +16,23 @@ export const getConfig = () => {
   return http.get<string>('/api/config')
 }
 
+export const getSettings = () => {
+  return http.get<ClientSettings>('/api/settings')
+}
+
 export const putConfig = (content: string) => {
   return http.put<void>('/api/config', content)
+}
+
+export const putSettings = (settings: ClientSettings) => {
+  return http.put<void>('/api/settings', settings)
+}
+
+export const uploadFile = async (targetPath: string, file: File) => {
+  const form = new FormData()
+  form.append('targetPath', targetPath)
+  form.append('file', file)
+  return http.post<{ savedPath: string }>('/api/files/upload', form)
 }
 
 export const reloadConfig = () => {
@@ -34,6 +50,14 @@ export const getVisitorConfig = (name: string) => {
   return http.get<VisitorDefinition>(
     `/api/visitor/${encodeURIComponent(name)}/config`,
   )
+}
+
+export const listConfigProxies = () => {
+  return http.get<ProxyListResp>('/api/config/proxies')
+}
+
+export const listConfigVisitors = () => {
+  return http.get<VisitorListResp>('/api/config/visitors')
 }
 
 // Store API - Proxies

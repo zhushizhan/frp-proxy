@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/fatedier/frp/client/configmgmt"
@@ -16,7 +17,8 @@ import (
 )
 
 type serviceConfigManager struct {
-	svr *Service
+	svr              *Service
+	restartScheduled atomic.Bool
 }
 
 func newServiceConfigManager(svr *Service) configmgmt.ConfigManager {
@@ -120,6 +122,30 @@ func (m *serviceConfigManager) GetVisitorConfig(name string) (v1.VisitorConfigur
 		}
 	}
 	return nil, false
+}
+
+func (m *serviceConfigManager) ListConfigProxies() ([]v1.ProxyConfigurer, error) {
+	if m.svr.configFilePath == "" {
+		return nil, fmt.Errorf("%w: frpc has no config file path", configmgmt.ErrInvalidArgument)
+	}
+
+	result, err := config.LoadClientConfigResult(m.svr.configFilePath, false)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", configmgmt.ErrInvalidArgument, err)
+	}
+	return result.Proxies, nil
+}
+
+func (m *serviceConfigManager) ListConfigVisitors() ([]v1.VisitorConfigurer, error) {
+	if m.svr.configFilePath == "" {
+		return nil, fmt.Errorf("%w: frpc has no config file path", configmgmt.ErrInvalidArgument)
+	}
+
+	result, err := config.LoadClientConfigResult(m.svr.configFilePath, false)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", configmgmt.ErrInvalidArgument, err)
+	}
+	return result.Visitors, nil
 }
 
 func (m *serviceConfigManager) IsStoreProxyEnabled(name string) bool {

@@ -14,6 +14,7 @@ export const messagesEn = {
   },
   common: {
     refresh: 'Refresh',
+    upload: 'Upload',
     clear: 'Clear',
     loading: 'Loading...',
     enabled: 'Enabled',
@@ -278,6 +279,8 @@ export const messagesEn = {
       addPlugin: 'Add Plugin',
       removePlugin: 'Remove Plugin',
       addPreset: 'Add Preset',
+      openNewAddress: 'Open New Address',
+      waitingForRestart: 'Waiting For Restart',
     },
     emptyPlugins: 'No HTTP plugins configured yet.',
     presetTitle: 'Quick Presets',
@@ -328,5 +331,19 @@ export const messagesEn = {
     loadFailed: 'Failed to load server settings: {message}',
     saveSuccess: 'Settings saved. frps is restarting...',
     saveFailed: 'Failed to save server settings: {message}',
+    uploadSuccess: 'File uploaded to {path}',
+    uploadFailed: 'Failed to upload file: {message}',
+    restartState: {
+      pollingTitle: 'frps is restarting',
+      pollingDescription:
+        'The current page is waiting for frps to come back on this address. You can stay here while the service restarts.',
+      redirectTitle: 'frps is restarting on a new address',
+      redirectDescription:
+        'The dashboard listener changed. Open the new address below after frps finishes restarting.',
+      redirectQueued: 'Settings saved. Redirecting to the new dashboard address...',
+      recovered: 'frps is back online.',
+      refreshManual:
+        'frps is still restarting. If the page does not recover automatically, reopen the dashboard address shown above.',
+    },
   },
 } as const

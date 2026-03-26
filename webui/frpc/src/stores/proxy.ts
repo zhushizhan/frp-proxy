@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import type { ProxyStatus, ProxyDefinition } from '../types'
 import {
   getStatus,
+  listConfigProxies,
   listStoreProxies,
   getStoreProxy,
   createStoreProxy,
@@ -12,6 +13,7 @@ import {
 
 export const useProxyStore = defineStore('proxy', () => {
   const proxies = ref<ProxyStatus[]>([])
+  const configProxies = ref<ProxyDefinition[]>([])
   const storeProxies = ref<ProxyDefinition[]>([])
   const storeEnabled = ref(false)
   const storeChecked = ref(false)
@@ -53,6 +55,16 @@ export const useProxyStore = defineStore('proxy', () => {
       storeChecked.value = true
     } finally {
       storeLoading.value = false
+    }
+  }
+
+  const fetchConfigProxies = async () => {
+    try {
+      const res = await listConfigProxies()
+      configProxies.value = res.proxies || []
+    } catch (err: any) {
+      error.value = err.message
+      throw err
     }
   }
 
@@ -112,8 +124,33 @@ export const useProxyStore = defineStore('proxy', () => {
     }
   }
 
+  const configProxyWithStatus = (def: ProxyDefinition): ProxyStatus => {
+    const block = (def as any)[def.type]
+    const enabled = block?.enabled !== false
+
+    const localIP = block?.localIP || '127.0.0.1'
+    const localPort = block?.localPort
+    const local_addr = localPort != null ? `${localIP}:${localPort}` : ''
+    const remotePort = block?.remotePort
+    const remote_addr = remotePort != null ? `:${remotePort}` : ''
+    const plugin = block?.plugin?.type || ''
+
+    const status = proxies.value.find((p) => p.name === def.name)
+    return {
+      name: def.name,
+      type: def.type,
+      status: !enabled ? 'disabled' : (status?.status || 'waiting'),
+      err: status?.err || '',
+      local_addr: status?.local_addr || local_addr,
+      remote_addr: status?.remote_addr || remote_addr,
+      plugin: status?.plugin || plugin,
+      source: 'config',
+    }
+  }
+
   return {
     proxies,
+    configProxies,
     storeProxies,
     storeEnabled,
     storeChecked,
@@ -121,12 +158,14 @@ export const useProxyStore = defineStore('proxy', () => {
     storeLoading,
     error,
     fetchStatus,
+    fetchConfigProxies,
     fetchStoreProxies,
     checkStoreEnabled,
     createProxy,
     updateProxy,
     deleteProxy,
     toggleProxy,
+    configProxyWithStatus,
     storeProxyWithStatus,
   }
 })

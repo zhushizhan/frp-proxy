@@ -48,6 +48,7 @@ type ProxyManager interface {
 type ConfigManager interface {
 	GetSettings() (model.ServerSettings, error)
 	UpdateSettings(model.ServerSettings) error
+	UploadFile(targetPath string, filename string, content []byte) (string, error)
 }
 
 func NewController(
@@ -116,6 +117,24 @@ func (c *Controller) UpdateSettings(ctx *httppkg.Context) (any, error) {
 		return nil, httppkg.NewError(http.StatusBadRequest, err.Error())
 	}
 	return httppkg.GeneralResponse{Code: 200, Msg: "saved and restarting"}, nil
+}
+
+// POST /api/files/upload
+func (c *Controller) UploadFile(ctx *httppkg.Context) (any, error) {
+	configManager := c.currentConfigManager()
+	if configManager == nil {
+		return nil, fmt.Errorf("server config manager unavailable")
+	}
+
+	upload, err := httppkg.ParseUploadedFileRequest(ctx.Req)
+	if err != nil {
+		return nil, httppkg.NewError(http.StatusBadRequest, err.Error())
+	}
+	savedPath, err := configManager.UploadFile(upload.TargetPath, upload.Filename, upload.Content)
+	if err != nil {
+		return nil, httppkg.NewError(http.StatusBadRequest, err.Error())
+	}
+	return model.FileUploadResp{SavedPath: savedPath}, nil
 }
 
 func (c *Controller) currentConfigManager() ConfigManager {

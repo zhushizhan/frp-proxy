@@ -8,6 +8,10 @@ type HTTPPluginSettings struct {
 	TLSVerify bool     `json:"tlsVerify"`
 }
 
+type FileUploadResp struct {
+	SavedPath string `json:"savedPath"`
+}
+
 type ServerSettings struct {
 	ConfigPath             string               `json:"configPath,omitempty"`
 	AutoRestart            bool                 `json:"autoRestart"`

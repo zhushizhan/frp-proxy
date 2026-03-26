@@ -12,8 +12,8 @@
             <el-icon><Refresh /></el-icon>
             {{ t('common.refresh') }}
           </ActionButton>
-          <ActionButton variant="outline" size="small" @click="router.push('/config')">
-            {{ t('common.openConfig') }}
+          <ActionButton variant="outline" size="small" @click="router.push('/settings')">
+            {{ t('common.openSettings') }}
           </ActionButton>
           <ActionButton
             size="small"
@@ -30,6 +30,39 @@
       <section class="section">
         <div class="section-header">
           <div>
+            <h3 class="section-title">{{ t('visitorList.configTitle') }}</h3>
+            <p class="section-copy">{{ t('visitorList.configCopy') }}</p>
+          </div>
+        </div>
+
+        <div v-if="filteredConfigVisitors.length > 0" class="visitor-list">
+          <div
+            v-for="visitor in filteredConfigVisitors"
+            :key="visitor.name"
+            class="visitor-card"
+            @click="goToDetail(visitor.name)"
+          >
+            <div class="card-left">
+              <div class="card-header">
+                <span class="visitor-name">{{ visitor.name }}</span>
+                <span class="type-tag">{{ visitor.type.toUpperCase() }}</span>
+                <span class="source-tag">{{ t('common.config') }}</span>
+              </div>
+              <div class="card-meta">
+                {{ getServerName(visitor) || t('visitorList.pairFallback') }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty-state empty-state-compact">
+          <p class="empty-text">{{ t('visitorList.configEmptyTitle') }}</p>
+          <p class="empty-hint">{{ t('visitorList.configEmptyHint') }}</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
             <h3 class="section-title">{{ t('visitorList.managedTitle') }}</h3>
             <p class="section-copy">{{ t('visitorList.managedCopy') }}</p>
           </div>
@@ -38,6 +71,9 @@
         <div v-if="!visitorStore.storeEnabled && visitorStore.storeChecked" class="store-disabled">
           <p class="store-disabled-title">{{ t('visitorList.storeDisabledTitle') }}</p>
           <p class="store-disabled-copy">{{ t('visitorList.storeDisabledCopy') }}</p>
+          <ActionButton size="small" variant="outline" @click="router.push('/settings')">
+            {{ t('common.openSettings') }}
+          </ActionButton>
           <pre class="config-hint">[store]
 path = "./frpc_store.json"</pre>
         </div>
@@ -307,6 +343,21 @@ const filteredVisitors = computed(() => {
   return list
 })
 
+const filteredConfigVisitors = computed(() => {
+  let list = visitorStore.configVisitors as VisitorDefinition[]
+
+  if (typeFilter.value) {
+    list = list.filter((visitor) => visitor.type === typeFilter.value)
+  }
+
+  if (searchText.value) {
+    const query = searchText.value.toLowerCase()
+    list = list.filter((visitor) => visitor.name.toLowerCase().includes(query))
+  }
+
+  return list
+})
+
 watch(
   () => createForm.value,
   () => {
@@ -324,7 +375,10 @@ const getServerName = (visitor: VisitorDefinition): string => {
 
 const fetchData = async () => {
   try {
-    await visitorStore.fetchStoreVisitors()
+    await Promise.all([
+      visitorStore.fetchConfigVisitors(),
+      visitorStore.fetchStoreVisitors(),
+    ])
   } catch (error: any) {
     ElMessage.error(t('visitorList.refreshFailed', { message: error.message }))
   }
@@ -575,6 +629,17 @@ onMounted(() => {
   background: $color-bg-secondary;
 }
 
+.source-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: $color-text-light;
+  background: rgba(15, 23, 42, 0.06);
+}
+
 .card-meta {
   font-size: 14px;
   color: $color-text-muted;
@@ -623,6 +688,10 @@ onMounted(() => {
 .empty-state {
   text-align: center;
   padding: 60px 20px;
+}
+
+.empty-state-compact {
+  padding: 32px 20px;
 }
 
 .empty-text {

@@ -28,6 +28,7 @@ import (
 	"github.com/fatedier/frp/pkg/config/v1/validation"
 	"github.com/fatedier/frp/pkg/policy/security"
 	"github.com/fatedier/frp/pkg/util/log"
+	"github.com/fatedier/frp/pkg/util/system"
 	"github.com/fatedier/frp/pkg/util/version"
 	"github.com/fatedier/frp/server"
 )
@@ -63,6 +64,7 @@ var rootCmd = &cobra.Command{
 		resolvedCfgFile, err := resolveOptionalServerConfigPath(cfgFile)
 		if err != nil {
 			fmt.Println(err)
+			system.PauseBeforeExit()
 			os.Exit(1)
 		}
 		cfgFile = resolvedCfgFile
@@ -75,6 +77,7 @@ var rootCmd = &cobra.Command{
 			svrCfg, isLegacyFormat, err = config.LoadServerConfig(cfgFile, strictConfigMode)
 			if err != nil {
 				fmt.Println(err)
+				system.PauseBeforeExit()
 				os.Exit(1)
 			}
 			if isLegacyFormat {
@@ -84,6 +87,7 @@ var rootCmd = &cobra.Command{
 		} else {
 			if err := serverCfg.Complete(); err != nil {
 				fmt.Printf("failed to complete server config: %v\n", err)
+				system.PauseBeforeExit()
 				os.Exit(1)
 			}
 			svrCfg = &serverCfg
@@ -97,11 +101,13 @@ var rootCmd = &cobra.Command{
 		}
 		if err != nil {
 			fmt.Println(err)
+			system.PauseBeforeExit()
 			os.Exit(1)
 		}
 
 		if err := runServer(svrCfg); err != nil {
 			fmt.Println(err)
+			system.PauseBeforeExit()
 			os.Exit(1)
 		}
 		return nil
@@ -111,6 +117,7 @@ var rootCmd = &cobra.Command{
 func Execute() {
 	rootCmd.SetGlobalNormalizationFunc(config.WordSepNormalizeFunc)
 	if err := rootCmd.Execute(); err != nil {
+		system.PauseBeforeExit()
 		os.Exit(1)
 	}
 }

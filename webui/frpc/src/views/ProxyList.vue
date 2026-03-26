@@ -12,8 +12,8 @@
             <el-icon><Refresh /></el-icon>
             {{ t('common.refresh') }}
           </ActionButton>
-          <ActionButton variant="outline" size="small" @click="router.push('/config')">
-            {{ t('common.openConfig') }}
+          <ActionButton variant="outline" size="small" @click="router.push('/settings')">
+            {{ t('common.openSettings') }}
           </ActionButton>
           <ActionButton
             size="small"
@@ -30,6 +30,29 @@
       <section class="section">
         <div class="section-header">
           <div>
+            <h3 class="section-title">{{ t('proxyList.configTitle') }}</h3>
+            <p class="section-copy">{{ t('proxyList.configCopy') }}</p>
+          </div>
+        </div>
+
+        <div v-if="configProxyStatuses.length > 0" class="proxy-list">
+          <ProxyCard
+            v-for="proxy in configProxyStatuses"
+            :key="proxy.name"
+            :proxy="proxy"
+            showSource
+            @click="goToDetail(proxy.name)"
+          />
+        </div>
+        <div v-else class="empty-state empty-state-compact">
+          <p class="empty-text">{{ t('proxyList.configEmptyTitle') }}</p>
+          <p class="empty-hint">{{ t('proxyList.configEmptyHint') }}</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
             <h3 class="section-title">{{ t('proxyList.managedTitle') }}</h3>
             <p class="section-copy">{{ t('proxyList.managedCopy') }}</p>
           </div>
@@ -38,6 +61,9 @@
         <div v-if="!proxyStore.storeEnabled && proxyStore.storeChecked" class="store-disabled">
           <p class="store-disabled-title">{{ t('proxyList.storeDisabledTitle') }}</p>
           <p class="store-disabled-copy">{{ t('proxyList.storeDisabledCopy') }}</p>
+          <ActionButton size="small" variant="outline" @click="router.push('/settings')">
+            {{ t('common.openSettings') }}
+          </ActionButton>
           <pre class="config-hint">[store]
 path = "./frpc_store.json"</pre>
         </div>
@@ -310,6 +336,10 @@ const filteredStoreProxies = computed(() => {
   return list
 })
 
+const configProxyStatuses = computed(() => {
+  return proxyStore.configProxies.map((proxy) => proxyStore.configProxyWithStatus(proxy))
+})
+
 watch(
   () => createForm.value,
   () => {
@@ -324,6 +354,7 @@ const refreshData = async () => {
   try {
     await Promise.all([
       proxyStore.fetchStatus(),
+      proxyStore.fetchConfigProxies(),
       proxyStore.fetchStoreProxies(),
     ])
   } catch (error: any) {
@@ -576,6 +607,10 @@ onMounted(() => {
 .empty-state {
   text-align: center;
   padding: 60px 20px;
+}
+
+.empty-state-compact {
+  padding: 32px 20px;
 }
 
 .empty-text {

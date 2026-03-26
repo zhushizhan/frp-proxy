@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { VisitorDefinition } from '../types'
 import {
+  listConfigVisitors,
   listStoreVisitors,
   createStoreVisitor,
   updateStoreVisitor,
@@ -9,6 +10,7 @@ import {
 } from '../api/frpc'
 
 export const useVisitorStore = defineStore('visitor', () => {
+  const configVisitors = ref<VisitorDefinition[]>([])
   const storeVisitors = ref<VisitorDefinition[]>([])
   const storeEnabled = ref(false)
   const storeChecked = ref(false)
@@ -27,6 +29,19 @@ export const useVisitorStore = defineStore('visitor', () => {
         storeEnabled.value = false
       }
       storeChecked.value = true
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const fetchConfigVisitors = async () => {
+    loading.value = true
+    try {
+      const res = await listConfigVisitors()
+      configVisitors.value = res.visitors || []
+    } catch (err: any) {
+      error.value = err.message
+      throw err
     } finally {
       loading.value = false
     }
@@ -54,11 +69,13 @@ export const useVisitorStore = defineStore('visitor', () => {
   }
 
   return {
+    configVisitors,
     storeVisitors,
     storeEnabled,
     storeChecked,
     loading,
     error,
+    fetchConfigVisitors,
     fetchStoreVisitors,
     checkStoreEnabled,
     createVisitor,

@@ -1,4 +1,5 @@
 export * from './constants'
+export * from './client-settings'
 export * from './proxy-status'
 export * from './proxy-store'
 export * from './proxy-form'

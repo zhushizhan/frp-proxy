@@ -36,6 +36,7 @@ import (
 	"github.com/fatedier/frp/pkg/policy/featuregate"
 	"github.com/fatedier/frp/pkg/policy/security"
 	"github.com/fatedier/frp/pkg/util/log"
+	"github.com/fatedier/frp/pkg/util/system"
 	"github.com/fatedier/frp/pkg/util/version"
 )
 
@@ -78,6 +79,7 @@ var rootCmd = &cobra.Command{
 		configPath, err := resolveClientConfigPath(cfgFile)
 		if err != nil {
 			fmt.Println(err)
+			system.PauseBeforeExit()
 			os.Exit(1)
 		}
 
@@ -85,6 +87,7 @@ var rootCmd = &cobra.Command{
 		err = runClient(configPath, unsafeFeatures)
 		if err != nil {
 			fmt.Println(err)
+			system.PauseBeforeExit()
 			os.Exit(1)
 		}
 		return nil
@@ -115,6 +118,7 @@ func runMultipleClients(cfgDir string, unsafeFeatures *security.UnsafeFeatures) 
 func Execute() {
 	rootCmd.SetGlobalNormalizationFunc(config.WordSepNormalizeFunc)
 	if err := rootCmd.Execute(); err != nil {
+		system.PauseBeforeExit()
 		os.Exit(1)
 	}
 }
@@ -205,14 +209,7 @@ func runClientWithAggregator(result *config.ClientConfigLoadResult, unsafeFeatur
 	var storeSource *source.StoreSource
 
 	if result.Common.Store.IsEnabled() {
-		storePath := result.Common.Store.Path
-		if storePath != "" && cfgFilePath != "" && !filepath.IsAbs(storePath) {
-			storePath = filepath.Join(filepath.Dir(cfgFilePath), storePath)
-		}
-
-		s, err := source.NewStoreSource(source.StoreSourceConfig{
-			Path: storePath,
-		})
+		s, err := client.BuildStoreSourceForClientSettings(result.Common, cfgFilePath)
 		if err != nil {
 			return fmt.Errorf("failed to create store source: %w", err)
 		}

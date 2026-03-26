@@ -8,6 +8,9 @@ import (
 	"net/http"
 )
 
+// Embed the built webui/frpc distribution.
+// Keep this file touched when we need to force-refresh embedded client webui assets on Windows builds.
+// Client settings UI marker.
 //go:embed dist
 var embedFS embed.FS
 

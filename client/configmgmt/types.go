@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/fatedier/frp/client/http/model"
 	"github.com/fatedier/frp/client/proxy"
 	v1 "github.com/fatedier/frp/pkg/config/v1"
 )
@@ -21,6 +22,9 @@ type ConfigManager interface {
 
 	ReadConfigFile() (string, error)
 	WriteConfigFile(content []byte) error
+	GetSettings() (model.ClientSettings, error)
+	UpdateSettings(model.ClientSettings) error
+	UploadFile(targetPath string, filename string, content []byte) (string, error)
 
 	GetProxyStatus() []*proxy.WorkingStatus
 	IsStoreProxyEnabled(name string) bool
@@ -28,6 +32,8 @@ type ConfigManager interface {
 
 	GetProxyConfig(name string) (v1.ProxyConfigurer, bool)
 	GetVisitorConfig(name string) (v1.VisitorConfigurer, bool)
+	ListConfigProxies() ([]v1.ProxyConfigurer, error)
+	ListConfigVisitors() ([]v1.VisitorConfigurer, error)
 
 	ListStoreProxies() ([]v1.ProxyConfigurer, error)
 	GetStoreProxy(name string) (v1.ProxyConfigurer, error)

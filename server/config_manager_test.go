@@ -3,6 +3,7 @@ package server
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/fatedier/frp/pkg/config"
@@ -304,5 +305,56 @@ auth.tokenSource.exec.args = ["/c", "echo token"]
 	}
 	if cfg.Auth.TokenSource.Exec == nil || cfg.Auth.TokenSource.Exec.Command != "cmd" {
 		t.Fatalf("unexpected exec token source: %#v", cfg.Auth.TokenSource.Exec)
+	}
+}
+
+func TestFileConfigManagerUpdateSettingsOmitsDefaultValues(t *testing.T) {
+	path := writeServerConfigFile(t, `
+auth.token = "token123"
+`)
+
+	mgr := NewFileConfigManager(FileConfigManagerOptions{
+		ConfigFilePath: path,
+		UnsafeFeatures: security.NewUnsafeFeatures(nil),
+	})
+
+	settings, err := mgr.GetSettings()
+	if err != nil {
+		t.Fatalf("get settings: %v", err)
+	}
+
+	settings.Custom404Page = "./404.html"
+
+	if err := mgr.UpdateSettings(settings); err != nil {
+		t.Fatalf("update settings: %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	text := string(content)
+
+	if !strings.Contains(text, "custom404Page = './404.html'") {
+		t.Fatalf("expected custom404Page to be written, got:\n%s", text)
+	}
+
+	unexpected := []string{
+		"bindAddr",
+		"bindPort",
+		"proxyBindAddr",
+		"vhostHTTPTimeout",
+		"detailedErrorsToClient",
+		"natholeAnalysisDataReserveHours",
+		"transport.tcpMux",
+		"transport.maxPoolCount",
+		"transport.heartbeatTimeout",
+		"log.level",
+		"sshTunnelGateway.autoGenPrivateKeyPath",
+	}
+	for _, item := range unexpected {
+		if strings.Contains(text, item) {
+			t.Fatalf("did not expect %q in saved config:\n%s", item, text)
+		}
 	}
 }

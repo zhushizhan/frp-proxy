@@ -459,6 +459,11 @@ func (svr *Service) UpdateConfigSource(
 		return fmt.Errorf("config source is not available")
 	}
 
+	newStoreSource, err := buildStoreSource(common, svr.configFilePath)
+	if err != nil {
+		return err
+	}
+
 	if err := cfgSource.ReplaceAll(proxyCfgs, visitorCfgs); err != nil {
 		return err
 	}
@@ -468,6 +473,10 @@ func (svr *Service) UpdateConfigSource(
 	svr.cfgMu.Lock()
 	svr.reloadCommon = common
 	svr.cfgMu.Unlock()
+	svr.storeSource = newStoreSource
+	if aggregator := svr.aggregator; aggregator != nil {
+		aggregator.SetStoreSource(newStoreSource)
+	}
 
 	if err := svr.reloadConfigFromSourcesLocked(); err != nil {
 		return err

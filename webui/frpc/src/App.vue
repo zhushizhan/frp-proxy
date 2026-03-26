@@ -65,6 +65,14 @@
       <aside class="sidebar" :class="{ 'mobile-open': isMobile && sidebarOpen }">
         <nav class="sidebar-nav">
           <router-link
+            to="/settings"
+            class="sidebar-link"
+            :class="{ active: route.path === '/settings' }"
+            @click="closeSidebar"
+          >
+            {{ t('app.settings') }}
+          </router-link>
+          <router-link
             to="/proxies"
             class="sidebar-link"
             :class="{ active: route.path.startsWith('/proxies') }"
@@ -86,7 +94,7 @@
             :class="{ active: route.path === '/config' }"
             @click="closeSidebar"
           >
-            {{ t('app.config') }}
+            {{ t('app.rawConfig') }}
           </router-link>
         </nav>
       </aside>

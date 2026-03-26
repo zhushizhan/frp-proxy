@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	toml "github.com/pelletier/go-toml/v2"
 	yaml "sigs.k8s.io/yaml"
@@ -18,6 +16,7 @@ import (
 	v1 "github.com/fatedier/frp/pkg/config/v1"
 	"github.com/fatedier/frp/pkg/config/v1/validation"
 	"github.com/fatedier/frp/pkg/policy/security"
+	"github.com/fatedier/frp/pkg/util/fileutil"
 	"github.com/fatedier/frp/pkg/util/log"
 	sermodel "github.com/fatedier/frp/server/http/model"
 )
@@ -65,12 +64,20 @@ func (m *FileConfigManager) GetSettings() (sermodel.ServerSettings, error) {
 }
 
 func (m *FileConfigManager) UpdateSettings(in sermodel.ServerSettings) error {
+	if m.configFilePath == "" {
+		return fmt.Errorf("frps is not running with a config file")
+	}
+
 	cfg, isLegacy, err := m.loadConfig()
 	if err != nil {
 		return err
 	}
 	if isLegacy {
 		return fmt.Errorf("legacy ini format is not supported for UI settings")
+	}
+	doc, format, err := loadServerConfigDocument(m.configFilePath)
+	if err != nil {
+		return err
 	}
 
 	allowPorts := []types.PortsRange{}
@@ -184,12 +191,28 @@ func (m *FileConfigManager) UpdateSettings(in sermodel.ServerSettings) error {
 		return err
 	}
 
-	if err := m.writeConfig(cfg); err != nil {
+	applyServerSettingsToDocument(doc, in, allowPorts)
+
+	data, err := marshalServerConfigDocument(format, doc)
+	if err != nil {
+		return err
+	}
+	if err := validateServerConfigContent(m.configFilePath, data, m.unsafeFeatures); err != nil {
+		return err
+	}
+	if err := os.WriteFile(m.configFilePath, data, 0o600); err != nil {
 		return err
 	}
 
 	m.scheduleRestart()
 	return nil
+}
+
+func (m *FileConfigManager) UploadFile(targetPath string, filename string, content []byte) (string, error) {
+	if m.configFilePath == "" {
+		return "", fmt.Errorf("frps is not running with a config file")
+	}
+	return fileutil.WriteUploadTarget(m.configFilePath, targetPath, filename, content)
 }
 
 func (m *FileConfigManager) toSettings(cfg *v1.ServerConfig) sermodel.ServerSettings {
@@ -269,35 +292,88 @@ func (m *FileConfigManager) loadConfig() (*v1.ServerConfig, bool, error) {
 	return config.LoadServerConfig(m.configFilePath, true)
 }
 
-func (m *FileConfigManager) writeConfig(cfg *v1.ServerConfig) error {
-	if m.configFilePath == "" {
-		return fmt.Errorf("frps is not running with a config file")
+func loadServerConfigDocument(path string) (map[string]any, string, error) {
+	if path == "" {
+		return nil, "", fmt.Errorf("frps is not running with a config file")
+	}
+	if config.DetectLegacyINIFormatFromFile(path) {
+		return nil, "", fmt.Errorf("legacy ini format is not supported for UI settings")
 	}
 
-	var (
-		data []byte
-		err  error
-	)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, "", err
+	}
 
-	switch strings.ToLower(filepath.Ext(m.configFilePath)) {
+	format := strings.ToLower(filepath.Ext(path))
+	doc := map[string]any{}
+	switch format {
 	case ".toml":
-		data, err = toml.Marshal(cfg)
+		if err := toml.Unmarshal(content, &doc); err != nil {
+			return nil, format, err
+		}
 	case ".yaml", ".yml":
-		data, err = yaml.Marshal(cfg)
+		if err := yaml.Unmarshal(content, &doc); err != nil {
+			return nil, format, err
+		}
 	case ".json":
-		data, err = json.MarshalIndent(cfg, "", "  ")
+		if err := json.Unmarshal(content, &doc); err != nil {
+			return nil, format, err
+		}
 	default:
-		return fmt.Errorf("unsupported config format for UI settings")
+		return nil, format, fmt.Errorf("unsupported config format for UI settings")
 	}
+	return doc, format, nil
+}
+
+func marshalServerConfigDocument(format string, doc map[string]any) ([]byte, error) {
+	switch format {
+	case ".toml":
+		return toml.Marshal(doc)
+	case ".yaml", ".yml":
+		return yaml.Marshal(doc)
+	case ".json":
+		return json.MarshalIndent(doc, "", "  ")
+	default:
+		return nil, fmt.Errorf("unsupported config format for UI settings")
+	}
+}
+
+func validateServerConfigContent(path string, content []byte, unsafeFeatures *security.UnsafeFeatures) error {
+	dir := filepath.Dir(path)
+	ext := filepath.Ext(path)
+	tmpFile, err := os.CreateTemp(dir, "frps-settings-*"+ext)
 	if err != nil {
 		return err
 	}
+	tmpPath := tmpFile.Name()
+	defer func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+	}()
 
-	return os.WriteFile(m.configFilePath, data, 0o600)
+	if _, err := tmpFile.Write(content); err != nil {
+		return err
+	}
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+
+	cfg, isLegacy, err := config.LoadServerConfig(tmpPath, true)
+	if err != nil {
+		return err
+	}
+	if isLegacy {
+		return fmt.Errorf("legacy ini format is not supported for UI settings")
+	}
+
+	validator := validation.NewConfigValidator(unsafeFeatures)
+	_, err = validator.ValidateServerConfig(cfg)
+	return err
 }
 
 func (m *FileConfigManager) scheduleRestart() {
-	if m.service == nil || m.executablePath == "" {
+	if m.executablePath == "" || m.configFilePath == "" {
 		return
 	}
 	if !m.restartScheduled.CompareAndSwap(false, true) {
@@ -305,18 +381,101 @@ func (m *FileConfigManager) scheduleRestart() {
 	}
 
 	go func() {
-		cmd := exec.Command(m.executablePath, m.args...)
-		cmd.Dir = m.workDir
-		cmd.Env = append(os.Environ(), "FRP_STARTUP_DELAY_MS=1000")
+		scriptPath, err := ensureFRPSServiceScript(m.executablePath)
+		if err != nil {
+			log.Errorf("failed to prepare frps service script: %v", err)
+			m.restartScheduled.Store(false)
+			return
+		}
+
+		cmd, err := buildFRPSServiceCommand(scriptPath, os.Getpid(), m.executablePath, m.configFilePath, m.workDir)
+		if err != nil {
+			log.Errorf("failed to build frps service restart command: %v", err)
+			m.restartScheduled.Store(false)
+			return
+		}
 		if err := cmd.Start(); err != nil {
 			log.Errorf("failed to schedule frps restart: %v", err)
 			m.restartScheduled.Store(false)
 			return
 		}
-
-		time.Sleep(200 * time.Millisecond)
-		_ = m.service.Close()
 	}()
+}
+
+func applyServerSettingsToDocument(doc map[string]any, in sermodel.ServerSettings, allowPorts []types.PortsRange) {
+	bindAddr := strings.TrimSpace(in.BindAddr)
+	if bindAddr == "" {
+		bindAddr = "0.0.0.0"
+	}
+
+	setStringOrDeleteIfDefault(doc, bindAddr, "0.0.0.0", "bindAddr")
+	setIntOrDeleteIfDefault(doc, in.BindPort, 7000, "bindPort")
+	setStringOrDeleteIfDefault(doc, strings.TrimSpace(in.ProxyBindAddr), bindAddr, "proxyBindAddr")
+	setIntOrDeleteIfDefault(doc, in.KCPBindPort, 0, "kcpBindPort")
+	setIntOrDeleteIfDefault(doc, in.QUICBindPort, 0, "quicBindPort")
+	setIntOrDeleteIfDefault(doc, in.VhostHTTPPort, 0, "vhostHTTPPort")
+	setIntOrDeleteIfDefault(doc, in.VhostHTTPSPort, 0, "vhostHTTPSPort")
+	setInt64OrDeleteIfDefault(doc, in.VhostHTTPTimeout, 60, "vhostHTTPTimeout")
+	setIntOrDeleteIfDefault(doc, in.TCPMuxHTTPConnectPort, 0, "tcpmuxHTTPConnectPort")
+	setBoolOrDeleteIfDefault(doc, in.TCPMuxPassthrough, false, "tcpmuxPassthrough")
+	setStringOrDelete(doc, strings.TrimSpace(in.SubdomainHost), "subDomainHost")
+	setStringOrDelete(doc, strings.TrimSpace(in.Custom404Page), "custom404Page")
+
+	setStringOrDeleteIfDefault(doc, strings.TrimSpace(in.AuthMethod), "token", "auth", "method")
+	setStringSliceOrDelete(doc, in.AuthAdditionalScopes, "auth", "additionalScopes")
+	switch strings.TrimSpace(in.AuthMethod) {
+	case "", "token":
+		applyServerTokenSettings(doc, in)
+	case "oidc":
+		deletePath(doc, "auth", "token")
+		deletePath(doc, "auth", "tokenSource")
+		applyServerOIDCSettings(doc, in)
+	}
+
+	if shouldPersistServerTLSForce(in) {
+		setValue(doc, true, "transport", "tls", "force")
+	} else {
+		deletePath(doc, "transport", "tls", "force")
+	}
+	setStringOrDelete(doc, strings.TrimSpace(in.TransportTLSCertFile), "transport", "tls", "certFile")
+	setStringOrDelete(doc, strings.TrimSpace(in.TransportTLSKeyFile), "transport", "tls", "keyFile")
+	setStringOrDelete(doc, strings.TrimSpace(in.TransportTLSTrustedCA), "transport", "tls", "trustedCaFile")
+	setBoolOrDeleteIfDefault(doc, in.TCPMux, true, "transport", "tcpMux")
+	setInt64OrDeleteIfDefault(doc, in.TCPMuxKeepalive, 30, "transport", "tcpMuxKeepaliveInterval")
+	setInt64OrDeleteIfDefault(doc, in.MaxPoolCount, 5, "transport", "maxPoolCount")
+	setInt64OrDeleteIfDefault(doc, in.HeartbeatTimeout, defaultServerHeartbeatTimeout(in.TCPMux), "transport", "heartbeatTimeout")
+	setInt64OrDeleteIfDefault(doc, in.TCPKeepAlive, 7200, "transport", "tcpKeepalive")
+	setIntOrDeleteIfDefault(doc, in.QUICKeepalivePeriod, 10, "transport", "quic", "keepalivePeriod")
+	setIntOrDeleteIfDefault(doc, in.QUICMaxIdleTimeout, 30, "transport", "quic", "maxIdleTimeout")
+	setIntOrDeleteIfDefault(doc, in.QUICMaxIncomingStreams, 100000, "transport", "quic", "maxIncomingStreams")
+
+	setInt64OrDeleteIfDefault(doc, in.MaxPortsPerClient, 0, "maxPortsPerClient")
+	setInt64OrDeleteIfDefault(doc, in.UserConnTimeout, 10, "userConnTimeout")
+	setInt64OrDeleteIfDefault(doc, in.UDPPacketSize, 1500, "udpPacketSize")
+	setInt64OrDeleteIfDefault(doc, in.NatHoleRetentionHours, 7*24, "natholeAnalysisDataReserveHours")
+	setBoolOrDeleteIfDefault(doc, in.DetailedErrorsToClient, true, "detailedErrorsToClient")
+	setAllowPortsOrDelete(doc, allowPorts, "allowPorts")
+	setBoolOrDeleteIfDefault(doc, in.EnablePrometheus, false, "enablePrometheus")
+
+	setStringOrDeleteIfDefault(doc, strings.TrimSpace(in.DashboardAddr), "127.0.0.1", "webServer", "addr")
+	setIntOrDeleteIfDefault(doc, in.DashboardPort, 0, "webServer", "port")
+	setStringOrDelete(doc, strings.TrimSpace(in.DashboardUser), "webServer", "user")
+	setStringOrDelete(doc, strings.TrimSpace(in.DashboardPassword), "webServer", "password")
+	setStringOrDelete(doc, strings.TrimSpace(in.DashboardAssetsDir), "webServer", "assetsDir")
+	setBoolOrDeleteIfDefault(doc, in.DashboardPprofEnable, false, "webServer", "pprofEnable")
+	setDashboardTLSDocument(doc, in)
+
+	setStringOrDeleteIfDefault(doc, strings.TrimSpace(in.LogTo), "console", "log", "to")
+	setStringOrDeleteIfDefault(doc, strings.TrimSpace(in.LogLevel), "info", "log", "level")
+	setInt64OrDeleteIfDefault(doc, in.LogMaxDays, 3, "log", "maxDays")
+	setBoolOrDeleteIfDefault(doc, in.LogDisablePrintColor, false, "log", "disablePrintColor")
+
+	setIntOrDeleteIfDefault(doc, in.SSHTunnelGatewayPort, 0, "sshTunnelGateway", "bindPort")
+	setStringOrDelete(doc, strings.TrimSpace(in.SSHPrivateKeyFile), "sshTunnelGateway", "privateKeyFile")
+	setStringOrDeleteIfDefault(doc, strings.TrimSpace(in.SSHAutoGenKeyPath), "./.autogen_ssh_key", "sshTunnelGateway", "autoGenPrivateKeyPath")
+	setStringOrDelete(doc, strings.TrimSpace(in.SSHAuthorizedKeysFile), "sshTunnelGateway", "authorizedKeysFile")
+
+	setHTTPPluginsOrDelete(doc, in.HTTPPlugins, "httpPlugins")
 }
 
 func applyDashboardTLSSettings(webServer *v1.WebServerConfig, in sermodel.ServerSettings) {
@@ -333,6 +492,50 @@ func applyDashboardTLSSettings(webServer *v1.WebServerConfig, in sermodel.Server
 	webServer.TLS.CertFile = certFile
 	webServer.TLS.KeyFile = keyFile
 	webServer.TLS.TrustedCaFile = trustedCAFile
+}
+
+func applyServerTokenSettings(doc map[string]any, in sermodel.ServerSettings) {
+	deletePath(doc, "auth", "oidc")
+	switch strings.TrimSpace(in.AuthTokenSourceType) {
+	case "file":
+		deletePath(doc, "auth", "token")
+		deletePath(doc, "auth", "tokenSource", "exec")
+		setValue(doc, "file", "auth", "tokenSource", "type")
+		setStringOrDelete(doc, strings.TrimSpace(in.AuthTokenSourceFile), "auth", "tokenSource", "file", "path")
+	case "exec":
+		deletePath(doc, "auth", "token")
+		deletePath(doc, "auth", "tokenSource", "file")
+	default:
+		deletePath(doc, "auth", "tokenSource")
+		setStringOrDelete(doc, strings.TrimSpace(in.AuthToken), "auth", "token")
+	}
+}
+
+func applyServerOIDCSettings(doc map[string]any, in sermodel.ServerSettings) {
+	setStringOrDelete(doc, strings.TrimSpace(in.OIDCIssuer), "auth", "oidc", "issuer")
+	setStringOrDelete(doc, strings.TrimSpace(in.OIDCAudience), "auth", "oidc", "audience")
+	setBoolOrDeleteIfDefault(doc, in.OIDCSkipExpiryCheck, false, "auth", "oidc", "skipExpiryCheck")
+	setBoolOrDeleteIfDefault(doc, in.OIDCSkipIssuerCheck, false, "auth", "oidc", "skipIssuerCheck")
+}
+
+func shouldPersistServerTLSForce(in sermodel.ServerSettings) bool {
+	if !in.TLSForce {
+		return false
+	}
+	return strings.TrimSpace(in.TransportTLSTrustedCA) == ""
+}
+
+func setDashboardTLSDocument(doc map[string]any, in sermodel.ServerSettings) {
+	certFile := strings.TrimSpace(in.DashboardTLSCertFile)
+	keyFile := strings.TrimSpace(in.DashboardTLSKeyFile)
+	trustedCAFile := strings.TrimSpace(in.DashboardTLSTrustedCA)
+	if certFile == "" && keyFile == "" && trustedCAFile == "" {
+		deletePath(doc, "webServer", "tls")
+		return
+	}
+	setStringOrDelete(doc, certFile, "webServer", "tls", "certFile")
+	setStringOrDelete(doc, keyFile, "webServer", "tls", "keyFile")
+	setStringOrDelete(doc, trustedCAFile, "webServer", "tls", "trustedCaFile")
 }
 
 func authScopesToStringSlice(scopes []v1.AuthScope) []string {
@@ -429,4 +632,142 @@ func trimStringSlice(values []string) []string {
 		return nil
 	}
 	return out
+}
+
+func setAllowPortsOrDelete(doc map[string]any, ranges []types.PortsRange, path ...string) {
+	if len(ranges) == 0 {
+		deletePath(doc, path...)
+		return
+	}
+
+	values := make([]map[string]any, 0, len(ranges))
+	for _, portRange := range ranges {
+		item := map[string]any{}
+		if portRange.Single > 0 {
+			item["single"] = portRange.Single
+		} else {
+			item["start"] = portRange.Start
+			item["end"] = portRange.End
+		}
+		values = append(values, item)
+	}
+	setValue(doc, values, path...)
+}
+
+func setHTTPPluginsOrDelete(doc map[string]any, plugins []sermodel.HTTPPluginSettings, path ...string) {
+	if len(plugins) == 0 {
+		deletePath(doc, path...)
+		return
+	}
+
+	values := make([]map[string]any, 0, len(plugins))
+	for _, plugin := range plugins {
+		item := map[string]any{
+			"name": strings.TrimSpace(plugin.Name),
+			"addr": strings.TrimSpace(plugin.Addr),
+			"path": strings.TrimSpace(plugin.Path),
+		}
+		if ops := trimStringSlice(plugin.Ops); len(ops) > 0 {
+			item["ops"] = ops
+		}
+		if plugin.TLSVerify {
+			item["tlsVerify"] = true
+		}
+		values = append(values, item)
+	}
+	setValue(doc, values, path...)
+}
+
+func setValue(doc map[string]any, value any, path ...string) {
+	if len(path) == 0 {
+		return
+	}
+	current := doc
+	for _, key := range path[:len(path)-1] {
+		next, ok := current[key].(map[string]any)
+		if !ok {
+			next = map[string]any{}
+			current[key] = next
+		}
+		current = next
+	}
+	current[path[len(path)-1]] = value
+}
+
+func setStringOrDelete(doc map[string]any, value string, path ...string) {
+	if value == "" {
+		deletePath(doc, path...)
+		return
+	}
+	setValue(doc, value, path...)
+}
+
+func setStringSliceOrDelete(doc map[string]any, values []string, path ...string) {
+	if len(values) == 0 {
+		deletePath(doc, path...)
+		return
+	}
+	setValue(doc, values, path...)
+}
+
+func setStringOrDeleteIfDefault(doc map[string]any, value string, defaultValue string, path ...string) {
+	if value == "" || value == defaultValue {
+		deletePath(doc, path...)
+		return
+	}
+	setValue(doc, value, path...)
+}
+
+func setIntOrDeleteIfDefault(doc map[string]any, value int, defaultValue int, path ...string) {
+	if value == defaultValue {
+		deletePath(doc, path...)
+		return
+	}
+	setValue(doc, value, path...)
+}
+
+func setInt64OrDeleteIfDefault(doc map[string]any, value int64, defaultValue int64, path ...string) {
+	if value == defaultValue {
+		deletePath(doc, path...)
+		return
+	}
+	setValue(doc, value, path...)
+}
+
+func setBoolOrDeleteIfDefault(doc map[string]any, value bool, defaultValue bool, path ...string) {
+	if value == defaultValue {
+		deletePath(doc, path...)
+		return
+	}
+	setValue(doc, value, path...)
+}
+
+func deletePath(doc map[string]any, path ...string) {
+	if len(path) == 0 {
+		return
+	}
+	deletePathRecursive(doc, path, 0)
+}
+
+func deletePathRecursive(node map[string]any, path []string, index int) bool {
+	key := path[index]
+	if index == len(path)-1 {
+		delete(node, key)
+		return len(node) == 0
+	}
+	child, ok := node[key].(map[string]any)
+	if !ok {
+		return false
+	}
+	if deletePathRecursive(child, path, index+1) {
+		delete(node, key)
+	}
+	return len(node) == 0
+}
+
+func defaultServerHeartbeatTimeout(tcpMux bool) int64 {
+	if tcpMux {
+		return -1
+	}
+	return 90
 }

@@ -40,3 +40,7 @@ type ProxyListResp struct {
 type VisitorListResp struct {
 	Visitors []VisitorDefinition `json:"visitors"`
 }
+
+type FileUploadResp struct {
+	SavedPath string `json:"savedPath"`
+}

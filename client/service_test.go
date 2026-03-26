@@ -244,3 +244,39 @@ func TestReloadConfigFromSourcesDoesNotMutateStoreConfigs(t *testing.T) {
 		t.Fatalf("runtime visitor bindAddr should be defaulted, got %q", svr.visitorCfgs[0].GetBaseConfig().BindAddr)
 	}
 }
+
+func TestUpdateConfigSourceRebuildsStoreSourceFromCommonConfig(t *testing.T) {
+	configFilePath := filepath.Join(t.TempDir(), "frpc.toml")
+	agg := source.NewAggregator(source.NewConfigSource())
+	svr := &Service{
+		aggregator:     agg,
+		configSource:   agg.ConfigSource(),
+		configFilePath: configFilePath,
+		reloadCommon:   &v1.ClientCommonConfig{},
+	}
+
+	proxyCfg := &v1.TCPProxyConfig{
+		ProxyBaseConfig: v1.ProxyBaseConfig{
+			Name: "p1",
+			Type: "tcp",
+		},
+	}
+
+	commonWithStore := &v1.ClientCommonConfig{
+		Store: v1.StoreConfig{Path: "./frpc_store.json"},
+	}
+	if err := svr.UpdateConfigSource(commonWithStore, []v1.ProxyConfigurer{proxyCfg}, nil); err != nil {
+		t.Fatalf("update config source with store: %v", err)
+	}
+	if svr.storeSource == nil || agg.StoreSource() == nil {
+		t.Fatal("expected store source to be enabled")
+	}
+
+	commonWithoutStore := &v1.ClientCommonConfig{}
+	if err := svr.UpdateConfigSource(commonWithoutStore, []v1.ProxyConfigurer{proxyCfg}, nil); err != nil {
+		t.Fatalf("update config source without store: %v", err)
+	}
+	if svr.storeSource != nil || agg.StoreSource() != nil {
+		t.Fatal("expected store source to be disabled")
+	}
+}

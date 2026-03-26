@@ -26,6 +26,36 @@ frp 是一个专注于内网穿透的高性能的反向代理应用，支持 TCP
 .\hack\sync-upstream.ps1
 ```
 
+## frp-proxy 打包与启动
+
+当前仓库额外提供了面向 `frp-proxy` 的增强运行方式：
+
+- 客户端 `webui`：保留经典配置页，同时新增更适合日常使用的引导式界面与设置页。
+- 客户端设置保存：沿用经典客户端的 `Save & Reload` 语义，保存后回写配置文件并触发 Reload，不默认重启进程。
+- 服务端设置保存：保存后会自动重启 `frps`，用于重新绑定监听端口、加载新的 Dashboard/TLS/虚拟主机等配置。
+- 服务端自动重启：改为由伴生脚本接管，先停止旧进程、确认退出，再启动新进程，继续使用原来的端口。
+
+推荐的服务端启动方式：
+
+Linux / Ubuntu:
+
+```bash
+chmod +x ./frps ./frps-service.sh
+./frps-service.sh start
+```
+
+Windows PowerShell:
+
+```powershell
+.\frps-service.ps1 start
+```
+
+说明：
+
+- `frps-service.sh` / `frps-service.ps1` 既可用于手动启动，也会在服务端设置页保存后被自动调用。
+- 客户端默认发布包会启用 Store API，便于直接使用 `webui` 的代理/访客引导式创建能力。
+- Ubuntu 服务端发布包中包含 `frps`、`frps.toml`、`frps-service.sh` 和对应说明文件。
+
 ## Sponsors
 
 frp 是一个完全开源的项目，我们的开发工作完全依靠赞助者们的支持。如果你愿意加入他们的行列，请考虑 [赞助 frp 的开发](https://github.com/sponsors/fatedier)。

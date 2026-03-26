@@ -12,3 +12,10 @@ export const getServerSettings = () => {
 export const updateServerSettings = (settings: ServerSettings) => {
   return http.put<void>('../api/settings', settings)
 }
+
+export const uploadFile = async (targetPath: string, file: File) => {
+  const form = new FormData()
+  form.append('targetPath', targetPath)
+  form.append('file', file)
+  return http.post<{ savedPath: string }>('../api/files/upload', form)
+}
