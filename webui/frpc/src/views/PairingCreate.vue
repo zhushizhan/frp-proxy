@@ -140,7 +140,7 @@ import { getSettings } from '../api/frpc'
 import { generateSecretKey, encodePairConfig } from '../utils/pairing'
 import type { PairSharePayload, PairingProxyType } from '../types/pairing'
 import { useI18n } from '../i18n'
-import ActionButton from '../components/ActionButton.vue'
+import ActionButton from '@shared/components/ActionButton.vue'
 
 const { t } = useI18n()
 const proxyStore = useProxyStore()

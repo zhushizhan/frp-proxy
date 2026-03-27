@@ -141,7 +141,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import ActionButton from '../components/ActionButton.vue'
+import ActionButton from '@shared/components/ActionButton.vue'
 import { useVisitorStore } from '../stores/visitor'
 import { decodePairConfig, buildAccessUrl } from '../utils/pairing'
 import type { PairSharePayload } from '../types/pairing'
@@ -282,21 +282,18 @@ const resetAndImportAnother = () => {
 </script>
 
 <style scoped lang="scss">
-@use '@/assets/css/var' as *;
-@use '@/assets/css/form-layout';
-
 .pairing-import-page {
   min-height: 100vh;
-  background: $color-bg;
+  background: $color-bg-primary;
 }
 
 .edit-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: $spacing-xl $spacing-2xl;
+  padding: $spacing-xl 28px;
   border-bottom: 1px solid $color-border;
-  background: $color-surface;
+  background: $color-bg-primary;
 }
 
 .breadcrumb {
@@ -323,7 +320,7 @@ const resetAndImportAnother = () => {
 .edit-content {
   max-width: 720px;
   margin: 0 auto;
-  padding: $spacing-2xl;
+  padding: 28px;
 }
 
 .chooser-hero {
@@ -379,7 +376,7 @@ const resetAndImportAnother = () => {
 }
 
 .info-card {
-  background: $color-surface;
+  background: $color-bg-secondary;
   border: 1px solid $color-border;
   border-radius: 12px;
   padding: 20px 24px;
@@ -424,7 +421,7 @@ const resetAndImportAnother = () => {
 .done-card {
   text-align: center;
   padding: 48px 24px;
-  background: $color-surface;
+  background: $color-bg-secondary;
   border: 1px solid $color-border;
   border-radius: 16px;
 }

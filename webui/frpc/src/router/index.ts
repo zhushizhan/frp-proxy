@@ -5,8 +5,6 @@ import ClientConfigure from '../views/ClientConfigure.vue'
 import ClientSettings from '../views/ClientSettings.vue'
 import ProxyEdit from '../views/ProxyEdit.vue'
 import VisitorEdit from '../views/VisitorEdit.vue'
-import PairingCreate from '../views/PairingCreate.vue'
-import PairingImport from '../views/PairingImport.vue'
 import { useProxyStore } from '../stores/proxy'
 
 const router = createRouter({
@@ -73,13 +71,13 @@ const router = createRouter({
     {
       path: '/pairing/create',
       name: 'PairingCreate',
-      component: PairingCreate,
+      component: () => import('../views/PairingCreate.vue'),
       meta: { requiresStore: true },
     },
     {
       path: '/pairing/import',
       name: 'PairingImport',
-      component: PairingImport,
+      component: () => import('../views/PairingImport.vue'),
     },
   ],
 })
