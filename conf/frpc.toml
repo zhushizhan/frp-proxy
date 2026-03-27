@@ -1,7 +1,12 @@
-serverAddr = "127.0.0.1"
+serverAddr = "your.server.ip"
 serverPort = 7000
 
-webServer.addr = "127.0.0.1"
-webServer.port = 7400
-webServer.user = "admin"
-webServer.password = "admin"
+[auth]
+method = "token"
+token = "replace-with-your-token"
+
+[webServer]
+addr = "127.0.0.1"
+port = 7500
+user = "admin"
+password = "admin"
