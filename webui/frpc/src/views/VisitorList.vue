@@ -22,6 +22,20 @@
           >
             + {{ t('visitorList.newVisitor') }}
           </ActionButton>
+          <ActionButton
+            size="small"
+            variant="outline"
+            @click="router.push('/pairing/create')"
+          >
+            {{ t('pairing.pairingWizardCreate') }}
+          </ActionButton>
+          <ActionButton
+            size="small"
+            variant="outline"
+            @click="router.push('/pairing/import')"
+          >
+            {{ t('pairing.pairingWizardImport') }}
+          </ActionButton>
         </div>
       </section>
     </div>
