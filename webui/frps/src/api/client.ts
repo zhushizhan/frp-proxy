@@ -8,3 +8,7 @@ export const getClients = () => {
 export const getClient = (key: string) => {
   return http.get<ClientInfoData>(`../api/clients/${key}`)
 }
+
+export const kickClient = (key: string) => {
+  return http.delete<void>(`../api/clients/${key}`)
+}

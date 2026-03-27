@@ -51,6 +51,16 @@
         </div>
       </div>
 
+      <div v-if="proxy.remote_addr" class="connect-banner">
+        <div class="connect-info">
+          <span class="connect-label">{{ t('proxyDetail.remoteAddr') }}</span>
+          <code class="connect-addr">{{ proxy.remote_addr }}</code>
+        </div>
+        <button class="copy-btn" :class="{ copied: copied }" @click="copyAddr">
+          {{ copied ? t('proxyDetail.copied') : t('proxyDetail.copy') }}
+        </button>
+      </div>
+
       <div v-if="proxy.err" class="error-banner">
         <el-icon class="error-icon"><Warning /></el-icon>
         <div>
@@ -95,6 +105,18 @@ const proxyConfig = ref<ProxyDefinition | null>(null)
 const loading = ref(true)
 const notFound = ref(false)
 const isStore = ref(false)
+const copied = ref(false)
+
+const copyAddr = async () => {
+  if (!proxy.value?.remote_addr) return
+  try {
+    await navigator.clipboard.writeText(proxy.value.remote_addr)
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 2000)
+  } catch {
+    ElMessage.error(t('proxyDetail.copyFailed'))
+  }
+}
 
 onMounted(async () => {
   try {
@@ -262,6 +284,62 @@ const handleEdit = () => {
 
 .header-meta {
   color: $color-text-muted;
+}
+
+.connect-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  margin-bottom: 18px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.connect-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.connect-label {
+  font-size: 13px;
+  color: $color-text-secondary;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.connect-addr {
+  font-size: 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: $color-text-primary;
+  word-break: break-all;
+}
+
+.copy-btn {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  color: $color-text-secondary;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: var(--el-color-primary);
+    color: var(--el-color-primary);
+  }
+
+  &.copied {
+    border-color: var(--el-color-success);
+    color: var(--el-color-success);
+    background: var(--el-color-success-light-9);
+  }
 }
 
 .guide-banner,

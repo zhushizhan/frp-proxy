@@ -310,6 +310,10 @@ export const messagesEn = {
     fallbackGuide:
       'This entry is managed through the Store API and remains compatible with the classic UI.',
     errorTitle: 'Connection Error',
+    remoteAddr: 'Connect Address',
+    copy: 'Copy',
+    copied: 'Copied',
+    copyFailed: 'Copy failed, please copy manually',
   },
   visitorDetail: {
     typeMeta: 'Type: {type}',

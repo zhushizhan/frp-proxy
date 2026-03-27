@@ -39,6 +39,7 @@ type Controller struct {
 	clientRegistry *registry.ClientRegistry
 	pxyManager     ProxyManager
 	getConfigMgr   func() ConfigManager
+	kickByRunID    func(runID string) bool
 }
 
 type ProxyManager interface {
@@ -63,6 +64,12 @@ func NewController(
 		pxyManager:     pxyManager,
 		getConfigMgr:   getConfigMgr,
 	}
+}
+
+// WithKickFunc sets the function used to kick a client by its runID.
+func (c *Controller) WithKickFunc(fn func(runID string) bool) *Controller {
+	c.kickByRunID = fn
+	return c
 }
 
 // /api/serverinfo
@@ -276,6 +283,29 @@ func (c *Controller) APIProxyByName(ctx *httppkg.Context) (any, error) {
 	}
 
 	return proxyInfo, nil
+}
+
+// DELETE /api/clients/{key} — kick (force-disconnect) a connected client
+func (c *Controller) KickClient(ctx *httppkg.Context) (any, error) {
+	key := ctx.Param("key")
+	if key == "" {
+		return nil, httppkg.NewError(http.StatusBadRequest, "missing client key")
+	}
+	if c.clientRegistry == nil {
+		return nil, fmt.Errorf("client registry unavailable")
+	}
+	info, ok := c.clientRegistry.GetByKey(key)
+	if !ok {
+		return nil, httppkg.NewError(http.StatusNotFound, fmt.Sprintf("client %s not found", key))
+	}
+	if !info.Online {
+		return nil, httppkg.NewError(http.StatusBadRequest, "client is already offline")
+	}
+	if c.kickByRunID == nil || !c.kickByRunID(info.RunID) {
+		return nil, httppkg.NewError(http.StatusInternalServerError, "failed to kick client")
+	}
+	log.Infof("kicked client key=%s runID=%s", key, info.RunID)
+	return httppkg.GeneralResponse{Code: 200, Msg: "client kicked"}, nil
 }
 
 // DELETE /api/proxies?status=offline

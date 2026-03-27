@@ -16,6 +16,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -24,6 +25,7 @@ import (
 
 	httppkg "github.com/fatedier/frp/pkg/util/http"
 	netpkg "github.com/fatedier/frp/pkg/util/net"
+	"github.com/fatedier/frp/pkg/util/version"
 	adminapi "github.com/fatedier/frp/server/http"
 	adminapi_model "github.com/fatedier/frp/server/http/model"
 	webuifrps "github.com/fatedier/frp/webui/frps"
@@ -43,7 +45,7 @@ func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) 
 
 	apiController := adminapi.NewController(svr.cfg, svr.clientRegistry, svr.pxyManager, func() adminapi.ConfigManager {
 		return svr.configManager
-	})
+	}).WithKickFunc(svr.ctlManager.KickByRunID)
 
 	// apis
 	subRouter.HandleFunc("/api/serverinfo", httppkg.MakeHTTPHandlerFunc(apiController.APIServerInfo)).Methods("GET")
@@ -95,6 +97,7 @@ func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) 
 	subRouter.HandleFunc("/api/traffic/{name}", httppkg.MakeHTTPHandlerFunc(apiController.APIProxyTraffic)).Methods("GET")
 	subRouter.HandleFunc("/api/clients", httppkg.MakeHTTPHandlerFunc(apiController.APIClientList)).Methods("GET")
 	subRouter.HandleFunc("/api/clients/{key}", httppkg.MakeHTTPHandlerFunc(apiController.APIClientDetail)).Methods("GET")
+	subRouter.HandleFunc("/api/clients/{key}", httppkg.MakeHTTPHandlerFunc(apiController.KickClient)).Methods("DELETE")
 	subRouter.HandleFunc("/api/proxies", httppkg.MakeHTTPHandlerFunc(apiController.DeleteProxies)).Methods("DELETE")
 
 	// view
@@ -112,7 +115,9 @@ func (svr *Service) registerRouteHandlers(helper *httppkg.RouterRegisterHelper) 
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(200)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, `{"status":"ok","version":%q}`, version.Full())
 }
 
 func registerWebUIRoutes(router *mux.Router, webuiFS http.FileSystem) {

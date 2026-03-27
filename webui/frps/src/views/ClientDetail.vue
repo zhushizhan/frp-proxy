@@ -36,6 +36,16 @@
               <span class="status-badge" :class="client.online ? 'online' : 'offline'">
                 {{ client.online ? t('status.online') : t('status.offline') }}
               </span>
+              <el-button
+                v-if="client.online"
+                type="danger"
+                size="small"
+                :loading="kicking"
+                style="margin-left: 10px;"
+                @click="handleKick"
+              >
+                {{ t('clientDetail.kickClient') }}
+              </el-button>
             </div>
           </div>
 
@@ -116,7 +126,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Loading, Search } from '@element-plus/icons-vue'
-import { getClient } from '../api/client'
+import { getClient, kickClient } from '../api/client'
 import { getProxiesByType } from '../api/proxy'
 import { getServerInfo } from '../api/server'
 import ProxyCard from '../components/ProxyCard.vue'
@@ -139,6 +149,7 @@ const { t } = useI18n()
 
 const client = ref<Client | null>(null)
 const loading = ref(true)
+const kicking = ref(false)
 const proxiesLoading = ref(false)
 const allProxies = ref<BaseProxy[]>([])
 const proxySearch = ref('')
@@ -248,6 +259,25 @@ const fetchProxies = async () => {
     allProxies.value = proxies
   } finally {
     proxiesLoading.value = false
+  }
+}
+
+const handleKick = async () => {
+  if (!client.value) return
+  const key = route.params.key as string
+  const name = client.value.displayName
+  const confirmed = window.confirm(t('clientDetail.kickClientConfirm', { name }))
+  if (!confirmed) return
+  kicking.value = true
+  try {
+    await kickClient(key)
+    ElMessage.success(t('clientDetail.kickSuccess'))
+    // Refresh client status after a short delay
+    setTimeout(() => fetchClient(), 1000)
+  } catch (error: any) {
+    ElMessage.error(t('clientDetail.kickFailed', { message: error.message }))
+  } finally {
+    kicking.value = false
   }
 }
 

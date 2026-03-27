@@ -85,6 +85,18 @@ func (cm *ControlManager) GetByID(runID string) (ctl *Control, ok bool) {
 	return
 }
 
+// KickByRunID closes the control connection for the given runID, forcing the client to disconnect.
+func (cm *ControlManager) KickByRunID(runID string) bool {
+	cm.mu.RLock()
+	ctl, ok := cm.ctlsByRunID[runID]
+	cm.mu.RUnlock()
+	if !ok {
+		return false
+	}
+	ctl.Close()
+	return true
+}
+
 func (cm *ControlManager) Close() error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()

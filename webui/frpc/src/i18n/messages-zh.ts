@@ -283,10 +283,14 @@ export const messagesZh = {
   proxyDetail: {
     sourceType: '来源：{source} | 类型：{type}',
     notFoundTitle: '未找到代理',
-    notFoundHint: '代理 “{name}” 不存在。',
+    notFoundHint: '代理 "{name}" 不存在。',
     fallbackSummary: 'Store 管理的代理条目',
     fallbackGuide: '这个条目通过 Store API 管理，并且继续兼容经典界面。',
     errorTitle: '连接错误',
+    remoteAddr: '连接地址',
+    copy: '复制',
+    copied: '已复制',
+    copyFailed: '复制失败，请手动复制',
   },
   visitorDetail: {
     typeMeta: '类型：{type}',
