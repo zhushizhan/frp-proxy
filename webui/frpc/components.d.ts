@@ -27,6 +27,8 @@ declare module 'vue' {
     ElRadioGroup: typeof import('element-plus/es')['ElRadioGroup']
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
+    ElTabPane: typeof import('element-plus/es')['ElTabPane']
+    ElTabs: typeof import('element-plus/es')['ElTabs']
     GuideTypeGrid: typeof import('./src/components/GuideTypeGrid.vue')['default']
     KeyValueEditor: typeof import('./src/components/KeyValueEditor.vue')['default']
     ProxyAuthSection: typeof import('./src/components/proxy-form/ProxyAuthSection.vue')['default']
