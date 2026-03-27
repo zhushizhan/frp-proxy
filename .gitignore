@@ -21,6 +21,8 @@ lastversion/
 dist/
 .idea/
 .vscode/
+!.vscode/settings.json
+!webui/**/.vscode/settings.json
 .autogen_ssh_key
 client.crt
 client.key
