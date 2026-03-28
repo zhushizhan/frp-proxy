@@ -34,8 +34,7 @@ echo "build version: $frp_version"
 # 2. Cross-compile all platforms
 make -f ./Makefile.cross-compiles
 
-# 3. Prepare output directory
-rm -rf ./release/packages
+# 3. Prepare output directory (keep historical packages, only clean current version)
 mkdir -p ./release/packages
 
 os_all='linux windows darwin freebsd openbsd'

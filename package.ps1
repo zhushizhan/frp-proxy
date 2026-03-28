@@ -59,8 +59,7 @@ if (-not $SkipCross) {
     if ($LASTEXITCODE -ne 0) { Write-Error 'cross-compile failed'; exit 1 }
 }
 
-# 3. Prepare output directory
-Remove-Item -Path release\packages -Recurse -Force -ErrorAction SilentlyContinue
+# 3. Prepare output directory (keep historical packages, only add current version)
 New-Item -ItemType Directory -Force release\packages | Out-Null
 
 $os_all   = @('linux','windows','darwin','freebsd','openbsd')
