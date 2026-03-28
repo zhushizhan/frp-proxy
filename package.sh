@@ -1,74 +1,106 @@
 #!/bin/sh
 set -e
 
-# compile for version
-make
-if [ $? -ne 0 ]; then
-    echo "make error"
-    exit 1
-fi
+# ============================================================
+# frp-proxy release packaging script (Linux / macOS)
+#
+# Output layout:
+#   release/frps            - server binary (direct-run / test)
+#   release/frpc            - client binary (direct-run / test)
+#   release/packages/
+#     frps-<os>-<arch>-<ver>.tar.gz   (server package)
+#     frpc-<os>-<arch>-<ver>.tar.gz   (client package)
+#
+# Server package contents:
+#   frps-<os>-<arch>-<ver>/
+#     frps
+#     frps.toml
+#     frps-service.sh    (Linux/macOS only)
+#     LICENSE
+#
+# Client package contents:
+#   frpc-<os>-<arch>-<ver>/
+#     frpc
+#     frpc.toml
+#     LICENSE
+# ============================================================
 
-frp_version=`./bin/frps --version`
+# 1. Build current platform binaries
+make build
+
+frp_version=$(./release/frps --version)
 echo "build version: $frp_version"
 
-# cross_compiles
+# 2. Cross-compile all platforms
 make -f ./Makefile.cross-compiles
 
+# 3. Prepare output directory
 rm -rf ./release/packages
 mkdir -p ./release/packages
 
-os_all='linux windows darwin freebsd openbsd android'
+os_all='linux windows darwin freebsd openbsd'
 arch_all='386 amd64 arm arm64 mips64 mips64le mips mipsle riscv64 loong64'
-extra_all='_ hf'
 
 cd ./release
 
 for os in $os_all; do
     for arch in $arch_all; do
-        for extra in $extra_all; do
-            suffix="${os}_${arch}"
-            if [ "x${extra}" != x"_" ]; then
-                suffix="${os}_${arch}_${extra}"
-            fi
-            frp_dir_name="frp_${frp_version}_${suffix}"
-            frp_path="./packages/frp_${frp_version}_${suffix}"
+        if [ "$os" = "windows" ]; then
+            frps_bin="frps_${os}_${arch}.exe"
+            frpc_bin="frpc_${os}_${arch}.exe"
+        else
+            frps_bin="frps_${os}_${arch}"
+            frpc_bin="frpc_${os}_${arch}"
+        fi
 
-            if [ "x${os}" = x"windows" ]; then
-                if [ ! -f "./frpc_${os}_${arch}.exe" ]; then
-                    continue
-                fi
-                if [ ! -f "./frps_${os}_${arch}.exe" ]; then
-                    continue
-                fi
-                mkdir ${frp_path}
-                mv ./frpc_${os}_${arch}.exe ${frp_path}/frpc.exe
-                mv ./frps_${os}_${arch}.exe ${frp_path}/frps.exe
-            else
-                if [ ! -f "./frpc_${suffix}" ]; then
-                    continue
-                fi
-                if [ ! -f "./frps_${suffix}" ]; then
-                    continue
-                fi
-                mkdir ${frp_path}
-                mv ./frpc_${suffix} ${frp_path}/frpc
-                mv ./frps_${suffix} ${frp_path}/frps
-            fi  
-            cp ../LICENSE ${frp_path}
-            cp -f ../conf/frpc.toml ${frp_path}
-            cp -f ../conf/frps.toml ${frp_path}
+        # Skip if cross-compiled binaries don't exist
+        [ -f "./$frps_bin" ] || continue
+        [ -f "./$frpc_bin" ] || continue
 
-            # packages
-            cd ./packages
-            if [ "x${os}" = x"windows" ]; then
-                zip -rq ${frp_dir_name}.zip ${frp_dir_name}
-            else
-                tar -zcf ${frp_dir_name}.tar.gz ${frp_dir_name}
-            fi  
-            cd ..
-            rm -rf ${frp_path}
-        done
+        frps_dir="frps-${os}-${arch}-${frp_version}"
+        frpc_dir="frpc-${os}-${arch}-${frp_version}"
+
+        # --- Server package ---
+        mkdir -p "./packages/$frps_dir"
+        if [ "$os" = "windows" ]; then
+            mv "./$frps_bin" "./packages/$frps_dir/frps.exe"
+        else
+            mv "./$frps_bin" "./packages/$frps_dir/frps"
+            cp ../frps-service.sh "./packages/$frps_dir/frps-service.sh"
+            chmod +x "./packages/$frps_dir/frps-service.sh"
+        fi
+        cp ../conf/frps.toml "./packages/$frps_dir/frps.toml"
+        cp ../LICENSE "./packages/$frps_dir/LICENSE"
+
+        cd ./packages
+        if [ "$os" = "windows" ]; then
+            zip -rq "$frps_dir.zip" "$frps_dir"
+        else
+            tar -zcf "$frps_dir.tar.gz" "$frps_dir"
+        fi
+        rm -rf "./$frps_dir"
+        cd ..
+
+        # --- Client package ---
+        mkdir -p "./packages/$frpc_dir"
+        if [ "$os" = "windows" ]; then
+            mv "./$frpc_bin" "./packages/$frpc_dir/frpc.exe"
+        else
+            mv "./$frpc_bin" "./packages/$frpc_dir/frpc"
+        fi
+        cp ../conf/frpc.toml "./packages/$frpc_dir/frpc.toml"
+        cp ../LICENSE "./packages/$frpc_dir/LICENSE"
+
+        cd ./packages
+        if [ "$os" = "windows" ]; then
+            zip -rq "$frpc_dir.zip" "$frpc_dir"
+        else
+            tar -zcf "$frpc_dir.tar.gz" "$frpc_dir"
+        fi
+        rm -rf "./$frpc_dir"
+        cd ..
     done
 done
 
 cd -
+echo "Done. Packages are in release/packages/"
