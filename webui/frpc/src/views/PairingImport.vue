@@ -81,11 +81,14 @@
         </div>
 
         <el-form :model="visitorForm" label-position="top" class="pairing-form">
-          <div class="field-row two-col">
-            <el-form-item :label="t('common.name')" required>
+          <div class="field-row three-col">
+            <el-form-item :label="t('common.name')" required style="flex:2">
               <el-input v-model="visitorForm.name" :placeholder="t('pairing.visitorNamePlaceholder')" />
             </el-form-item>
-            <el-form-item :label="t('pairing.bindPort')" required>
+            <el-form-item :label="t('pairing.bindAddr')" style="flex:1.5">
+              <el-input v-model="visitorForm.bindAddr" placeholder="127.0.0.1" />
+            </el-form-item>
+            <el-form-item :label="t('pairing.bindPort')" required style="flex:1">
               <el-input-number
                 v-model="visitorForm.bindPort"
                 :min="1"
@@ -95,9 +98,6 @@
               />
             </el-form-item>
           </div>
-          <el-form-item :label="t('pairing.bindAddr')">
-            <el-input v-model="visitorForm.bindAddr" placeholder="127.0.0.1" />
-          </el-form-item>
         </el-form>
 
         <div class="step-actions">
@@ -283,7 +283,8 @@ const resetAndImportAnother = () => {
 
 <style scoped lang="scss">
 .pairing-import-page {
-  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
   background: $color-bg-primary;
 }
 
@@ -416,6 +417,13 @@ const resetAndImportAnother = () => {
 
 .pairing-form {
   margin-bottom: 24px;
+}
+
+.field-row {
+  display: flex;
+  gap: 16px;
+  &.two-col { grid-template-columns: 1fr 1fr; }
+  &.three-col { flex-direction: row; align-items: flex-start; }
 }
 
 .done-card {
