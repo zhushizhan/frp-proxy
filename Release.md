@@ -1,5 +1,9 @@
 ## Features / 新功能
 
+* **[frpc WebUI] Hide empty config sections** — The "Config File" sections in both the Proxy list and Visitor list pages are now automatically hidden when no config-file-based proxies/visitors exist, giving a cleaner UI when only Store-managed or API-managed tunnels are in use.
+
+  **[frpc WebUI] 自动隐藏空的配置文件区块** — 代理列表和访客列表页面中的「配置文件」区块，当不存在来自配置文件的代理/访客时自动隐藏，使仅使用 Store 或 API 管理隧道时界面更简洁。
+
 * **[frpc WebUI] Pairing Wizard** — Added a guided two-side pairing wizard for STCP/XTCP/SUDP private proxy connections. The host side fills in a service form and generates a **share code** (URL-safe Base64) or JSON config with one click. The access side pastes the share code or JSON to automatically pre-fill a visitor configuration, chooses a local bind port, saves, and immediately sees the **local access address** with copy and open-link buttons. Entry buttons "Start Pairing" and "Join Pairing" are added to the Visitors page.
 
   **[frpc WebUI] 互访向导** — 新增面向 STCP/XTCP/SUDP 私有代理的双端互访向导。发起方填写服务表单后一键生成**分享码**（URL-safe Base64）或 JSON 配置；接入方粘贴分享码或 JSON 即可自动填充访客配置，选择本地绑定端口后保存，界面立即展示**本地访问地址**，支持一键复制与跳转链接。访客页面新增「发起互访」和「接入互访」入口按钮。
