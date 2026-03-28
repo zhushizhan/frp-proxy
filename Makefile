@@ -42,10 +42,12 @@ vet:
 	go vet -tags "$(NOWEB_TAG)$(NOWEBUI_TAG)" ./...
 
 frps:
-	env CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -tags "frps$(NOWEB_TAG)$(NOWEBUI_TAG)" -o bin/frps ./cmd/frps
+	mkdir -p release
+	env CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -tags "frps$(NOWEB_TAG)$(NOWEBUI_TAG)" -o release/frps ./cmd/frps
 
 frpc:
-	env CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -tags "frpc$(NOWEB_TAG)$(NOWEBUI_TAG)" -o bin/frpc ./cmd/frpc
+	mkdir -p release
+	env CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -tags "frpc$(NOWEB_TAG)$(NOWEBUI_TAG)" -o release/frpc ./cmd/frpc
 
 test: gotest
 
@@ -79,6 +81,8 @@ e2e-compatibility-last-frps:
 alltest: vet gotest e2e
 	
 clean:
-	rm -f ./bin/frpc
-	rm -f ./bin/frps
+	rm -f ./release/frpc
+	rm -f ./release/frpc.exe
+	rm -f ./release/frps
+	rm -f ./release/frps.exe
 	rm -rf ./lastversion
