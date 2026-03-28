@@ -1,5 +1,9 @@
 ## Features / 新功能
 
+* **[frpc WebUI] VirtualNet Configuration Wizard** — Added a dedicated "Virtual Network" page to the frpc dashboard. Users can select the node role (server/proxy or client/visitor), fill in the virtual IP (CIDR), secret key and peer address, then generate and copy the TOML config snippet or apply it directly to the Store. Supports bilingual UI (zh/en). *(Alpha: Linux/macOS only, requires root)*
+
+  **[frpc WebUI] 组网配置向导** — frpc 管理面板新增「组网」页面。用户可选择节点角色（服务端/代理 或 客户端/访客），填写虚拟 IP（CIDR）、密钥和对端地址，一键生成 TOML 配置片段或直接应用到 Store。支持中英双语界面。*（Alpha 功能，仅支持 Linux/macOS，需 root 权限）*
+
 * **[frpc WebUI] Hide empty config sections** — The "Config File" sections in both the Proxy list and Visitor list pages are now automatically hidden when no config-file-based proxies/visitors exist, giving a cleaner UI when only Store-managed or API-managed tunnels are in use.
 
   **[frpc WebUI] 自动隐藏空的配置文件区块** — 代理列表和访客列表页面中的「配置文件」区块，当不存在来自配置文件的代理/访客时自动隐藏，使仅使用 Store 或 API 管理隧道时界面更简洁。

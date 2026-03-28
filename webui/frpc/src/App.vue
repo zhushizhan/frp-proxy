@@ -96,6 +96,14 @@
           >
             {{ t('app.rawConfig') }}
           </router-link>
+          <router-link
+            to="/virtualnet"
+            class="sidebar-link"
+            :class="{ active: route.path === '/virtualnet' }"
+            @click="closeSidebar"
+          >
+            {{ t('app.virtualNet') }}
+          </router-link>
         </nav>
       </aside>
 

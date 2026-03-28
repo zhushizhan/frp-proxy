@@ -69,6 +69,11 @@ const router = createRouter({
       component: ClientConfigure,
     },
     {
+      path: '/virtualnet',
+      name: 'VirtualNet',
+      component: () => import('../views/VirtualNet.vue'),
+    },
+    {
       path: '/pairing/create',
       name: 'PairingCreate',
       component: () => import('../views/PairingCreate.vue'),
