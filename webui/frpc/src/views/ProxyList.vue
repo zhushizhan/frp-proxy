@@ -27,7 +27,7 @@
     </div>
 
     <div class="page-content" v-loading="proxyStore.storeLoading">
-      <section class="section">
+      <section v-if="configProxyStatuses.length > 0" class="section">
         <div class="section-header">
           <div>
             <h3 class="section-title">{{ t('proxyList.configTitle') }}</h3>
@@ -35,7 +35,7 @@
           </div>
         </div>
 
-        <div v-if="configProxyStatuses.length > 0" class="proxy-list">
+        <div class="proxy-list">
           <ProxyCard
             v-for="proxy in configProxyStatuses"
             :key="proxy.name"
@@ -43,10 +43,6 @@
             showSource
             @click="goToDetail(proxy.name)"
           />
-        </div>
-        <div v-else class="empty-state empty-state-compact">
-          <p class="empty-text">{{ t('proxyList.configEmptyTitle') }}</p>
-          <p class="empty-hint">{{ t('proxyList.configEmptyHint') }}</p>
         </div>
       </section>
 

@@ -41,7 +41,7 @@
     </div>
 
     <div class="page-content" v-loading="visitorStore.loading">
-      <section class="section">
+      <section v-if="filteredConfigVisitors.length > 0" class="section">
         <div class="section-header">
           <div>
             <h3 class="section-title">{{ t('visitorList.configTitle') }}</h3>
@@ -49,7 +49,7 @@
           </div>
         </div>
 
-        <div v-if="filteredConfigVisitors.length > 0" class="visitor-list">
+        <div class="visitor-list">
           <div
             v-for="visitor in filteredConfigVisitors"
             :key="visitor.name"
@@ -67,10 +67,6 @@
               </div>
             </div>
           </div>
-        </div>
-        <div v-else class="empty-state empty-state-compact">
-          <p class="empty-text">{{ t('visitorList.configEmptyTitle') }}</p>
-          <p class="empty-hint">{{ t('visitorList.configEmptyHint') }}</p>
         </div>
       </section>
 
