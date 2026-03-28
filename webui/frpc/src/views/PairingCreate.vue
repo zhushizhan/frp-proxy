@@ -209,15 +209,22 @@ function copyShareJson() {
 async function saveAndFinish() {
   saving.value = true
   try {
-    // Save the proxy (A side)
+    // Save the proxy (A side) - must use nested ProxyDefinition format
+    const proxyType = form.value.type
+    const block: Record<string, any> = {
+      secretKey: form.value.secretKey,
+    }
+    if (form.value.localIP && form.value.localIP !== '127.0.0.1') {
+      block.localIP = form.value.localIP
+    }
+    if (form.value.localPort) {
+      block.localPort = form.value.localPort
+    }
     await proxyStore.createProxy({
       name: form.value.name,
-      type: form.value.type,
-      localIP: form.value.localIP,
-      localPort: form.value.localPort,
-      secretKey: form.value.secretKey,
-      enabled: true,
-    } as any)
+      type: proxyType,
+      [proxyType]: block,
+    })
     step.value = 3
     ElMessage.success(t('pairing.proxySaved'))
   } catch (e: any) {

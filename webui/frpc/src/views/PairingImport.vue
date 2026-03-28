@@ -224,19 +224,19 @@ const handleSave = async () => {
   saving.value = true
   try {
     const p = payload.value
+    const block: Record<string, any> = {
+      serverName: p.serverName,
+      secretKey: p.secretKey,
+      bindAddr: visitorForm.value.bindAddr || '127.0.0.1',
+      bindPort: visitorForm.value.bindPort,
+    }
+    if (p.serverUser) {
+      block.serverUser = p.serverUser
+    }
     const visitorDef: any = {
       name: visitorForm.value.name,
       type: p.type,
-      [p.type]: {
-        name: visitorForm.value.name,
-        type: p.type,
-        enabled: true,
-        serverName: p.serverName,
-        serverUser: p.serverUser || '',
-        secretKey: p.secretKey,
-        bindAddr: visitorForm.value.bindAddr || '127.0.0.1',
-        bindPort: visitorForm.value.bindPort,
-      },
+      [p.type]: block,
     }
 
     await visitorStore.createVisitor(visitorDef)
