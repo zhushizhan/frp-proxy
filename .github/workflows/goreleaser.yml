@@ -19,10 +19,16 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
-      - name: Build web assets (frps)
+      - name: Build classic web assets (frps)
+        run: npm install && npm run build
+        working-directory: web/frps
+      - name: Build classic web assets (frpc)
+        run: npm install && npm run build
+        working-directory: web/frpc
+      - name: Build custom webui assets (frps)
         run: npm install && npm run build
         working-directory: webui/frps
-      - name: Build web assets (frpc)
+      - name: Build custom webui assets (frpc)
         run: npm install && npm run build
         working-directory: webui/frpc
       - name: Make All
