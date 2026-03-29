@@ -20,11 +20,11 @@ jobs:
         with:
           node-version: '22'
       - name: Build web assets (frps)
-        run: make build
-        working-directory: web/frps
+        run: npm install && npm run build
+        working-directory: webui/frps
       - name: Build web assets (frpc)
-        run: make build
-        working-directory: web/frpc
+        run: npm install && npm run build
+        working-directory: webui/frpc
       - name: Make All
         run: |
           ./package.sh
